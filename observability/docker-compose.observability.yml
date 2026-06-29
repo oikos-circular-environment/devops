@@ -9,9 +9,8 @@
 #   grafana      256 MB   — dashboards
 #   alertmanager  64 MB   — roteamento de alertas
 #
-# Pré-requisitos:
+# Pré-requisito:
 #   cp observability/.env.observability.example observability/.env.observability
-#   docker network create oikos_obs    # apenas na primeira vez
 #
 # Para iniciar:
 #   npm run obs:up
@@ -26,14 +25,13 @@ services:
     volumes:
       - ./otelcol/otelcol-config.yml:/etc/otelcol-contrib/config.yaml:ro
     ports:
-      - "4317:4317"    # OTLP gRPC (recebe da API via oikos_obs network)
-      - "4318:4318"    # OTLP HTTP  (recebe da API via oikos_obs network)
+      - "4317:4317"    # OTLP gRPC
+      - "4318:4318"    # OTLP HTTP
       - "8888:8888"    # Self-metrics do collector
       - "8889:8889"    # Prometheus exporter (métricas da app)
       - "13133:13133"  # Health check
     networks:
       - observability_network
-      - oikos_obs
     deploy:
       resources:
         limits:
@@ -184,16 +182,12 @@ services:
       - ../data:/scripts/data
     networks:
       - observability_network
-      - oikos_obs
     depends_on:
       - prometheus
 
 networks:
   observability_network:
     driver: bridge
-  oikos_obs:
-    external: true
-    name: oikos_obs
 
 volumes:
   prometheus_data:
