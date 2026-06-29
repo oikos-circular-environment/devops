@@ -1,0 +1,22 @@
+{
+  "name": "oikos-devops",
+  "version": "1.0.0",
+  "description": "Infraestrutura de observabilidade e testes de carga para a Oikos API",
+  "private": true,
+  "scripts": {
+    "obs:up": "docker compose -f observability/docker-compose.observability.yml up -d",
+    "obs:down": "docker compose -f observability/docker-compose.observability.yml down",
+    "obs:ps": "docker compose -f observability/docker-compose.observability.yml ps",
+    "obs:logs": "docker compose -f observability/docker-compose.observability.yml logs -f",
+    "test:k6": "docker compose -f observability/docker-compose.observability.yml run --rm k6 run /scripts/suite.ts",
+    "test:smoke": "docker compose -f observability/docker-compose.observability.yml run --rm k6 run /scripts/smoke.ts",
+    "test:load": "docker compose -f observability/docker-compose.observability.yml run --rm k6 run /scripts/load.ts",
+    "test:stress": "docker compose -f observability/docker-compose.observability.yml run --rm k6 run /scripts/stress.ts",
+    "test:spike": "docker compose -f observability/docker-compose.observability.yml run --rm k6 run /scripts/spike.ts",
+    "test:soak": "docker compose -f observability/docker-compose.observability.yml run --rm k6 run /scripts/soak.ts"
+  },
+  "devDependencies": {
+    "@types/k6": "^2.0.0",
+    "typescript": "^5.8.3"
+  }
+}

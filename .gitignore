@@ -1,0 +1,13 @@
+node_modules/
+
+# Env files (apenas o .example vai para o git)
+observability/.env.observability
+
+# Dados gerados pelos scripts de seed
+data/*.json
+
+# Volumes Docker persistidos localmente
+observability/prometheus/
+observability/grafana/data/
+observability/loki/chunks/
+observability/tempo/blocks/
