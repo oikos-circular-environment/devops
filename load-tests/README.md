@@ -4,7 +4,7 @@ Testes de carga usando [k6](https://k6.io/). Todos os scripts fazem push de mét
 
 ## Pré-requisitos
 
-- Docker instalado
+- k6 instalado localmente (`k6 version` para verificar)
 - Stack de observabilidade rodando (`devops/observability/`) — para dashboards em tempo real
 - API rodando em `localhost:3333`
 
@@ -12,60 +12,41 @@ Testes de carga usando [k6](https://k6.io/). Todos os scripts fazem push de mét
 
 | Script | Carga | Duração | Objetivo |
 |---|---|---|---|
-| `smoke.js` | 2 VUs | 1 min | Sanity check pós-deploy — zero erros |
-| `load.js` | 0→50 VUs | ~13 min | Carga realista com mix de tráfego |
-| `stress.js` | 0→200 VUs | ~23 min | Encontrar ponto de ruptura |
-| `spike.js` | 0→200 VUs instantâneo | ~5 min | Teste de surge abrupto |
-| `soak.js` | 20 VUs | 70 min | Detectar memory leak e pool drain |
+| `smoke.ts` | 2 VUs | 1 min | Sanity check pós-deploy — zero erros |
+| `load.ts` | 0→50 VUs | ~13 min | Carga realista com mix de tráfego |
+| `stress.ts` | 0→200 VUs | ~23 min | Encontrar ponto de ruptura |
+| `spike.ts` | 0→200 VUs instantâneo | ~5 min | Teste de surge abrupto |
+| `soak.ts` | 20 VUs | 70 min | Detectar memory leak e pool drain |
 
 ## Como executar
+
+A partir da raiz do repositório `devops/`:
 
 ### Smoke (rápido, sem Prometheus)
 
 ```bash
-docker run --rm --network=host \
-  -e BASE_URL=http://localhost:3333 \
-  -v "$(pwd)/devops/load-tests:/scripts" \
-  grafana/k6:latest run /scripts/smoke.js
+npm run test:smoke
 ```
 
-### Load / Stress / Spike (com Prometheus Remote Write)
+### Load / Stress / Spike / Soak (com Prometheus Remote Write)
 
 ```bash
-docker run --rm --network=host \
-  -e BASE_URL=http://localhost:3333 \
-  -e TEST_USER_EMAIL=seu@email.com \
-  -e TEST_USER_PASSWORD=suasenha \
-  -e K6_PROMETHEUS_RW_SERVER_URL=http://localhost:9090/api/v1/write \
-  -e K6_TEST_NAME=load \
-  -v "$(pwd)/devops/load-tests:/scripts" \
-  grafana/k6:latest run --out=experimental-prometheus-rw /scripts/load.js
+npm run test:load
+npm run test:stress
+npm run test:spike
+npm run test:soak
 ```
 
-Substitua `load.js` por `stress.js`, `spike.js` ou `soak.js` conforme o caso.
+Os scripts com Prometheus fazem push de métricas usando native histograms (`K6_PROMETHEUS_RW_TREND_AS_NATIVE_HISTOGRAM=true`) e etiquetam a execução com `testid` para filtrar no Grafana.
 
-### Soak (requer credenciais)
-
-```bash
-docker run --rm --network=host \
-  -e BASE_URL=http://localhost:3333 \
-  -e TEST_USER_EMAIL=seu@email.com \
-  -e TEST_USER_PASSWORD=suasenha \
-  -e K6_PROMETHEUS_RW_SERVER_URL=http://localhost:9090/api/v1/write \
-  -e K6_TEST_NAME=soak \
-  -v "$(pwd)/devops/load-tests:/scripts" \
-  grafana/k6:latest run --out=experimental-prometheus-rw /scripts/soak.js
-```
+O `K6_PROMETHEUS_RW_SERVER_URL` não precisa ser definido — o padrão do k6 (`http://localhost:9090/api/v1/write`) já aponta para o Prometheus da stack local.
 
 ## Variáveis de ambiente
 
-| Variável | Obrigatória | Padrão | Descrição |
-|---|---|---|---|
-| `BASE_URL` | Não | `http://localhost:3333` | URL base da API |
-| `TEST_USER_EMAIL` | Para scripts com auth | — | Email de usuário de teste |
-| `TEST_USER_PASSWORD` | Para scripts com auth | — | Senha do usuário de teste |
-| `K6_PROMETHEUS_RW_SERVER_URL` | Para dashboards | — | URL do Prometheus Remote Write |
-| `K6_TEST_NAME` | Não | `oikos-load-test` | Label do teste no Grafana |
+| Variável | Padrão | Descrição |
+|---|---|---|
+| `BASE_URL` | `http://localhost:3333` | URL base da API |
+| `K6_PROMETHEUS_RW_SERVER_URL` | `http://localhost:9090/api/v1/write` | Endpoint do Prometheus Remote Write |
 
 ## Dashboard Grafana
 

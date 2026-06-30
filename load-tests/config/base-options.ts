@@ -1,15 +1,11 @@
+import { Options, Stage } from "k6/options";
+
 declare const __ENV: Record<string, string>;
 
-export interface Stage {
-  duration: string;
-  target: number;
-}
-
-export interface Thresholds {
-  [metric: string]: string[];
-}
-
-export function makeOptions(stages: Stage[], thresholds: Thresholds = {}) {
+export function makeOptions(
+  stages: Stage[],
+  thresholds: Options["thresholds"] = {}
+): Options {
   return {
     stages,
     thresholds: {

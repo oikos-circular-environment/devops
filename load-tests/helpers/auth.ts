@@ -1,6 +1,18 @@
 import http from "k6/http";
 import { check } from "k6";
 
+export function registerUser(baseUrl: string, email: string, password: string): void {
+  const res = http.post(
+    `${baseUrl}/v1/users/register`,
+    JSON.stringify({ email, password }),
+    { headers: { "Content-Type": "application/json" } },
+  );
+
+  if (res.status !== 204 && res.status !== 409) {
+    throw new Error(`Register failed (${res.status}): ${res.body}`);
+  }
+}
+
 export function getToken(baseUrl: string, email: string, password: string): string {
   const res = http.post(
     `${baseUrl}/v1/auth/login`,

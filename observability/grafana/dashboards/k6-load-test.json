@@ -5,7 +5,7 @@
   "tags": ["oikos", "k6", "load-test"],
   "refresh": "5s",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "time": { "from": "now-30m", "to": "now" },
   "timezone": "browser",
   "editable": true,
@@ -61,7 +61,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "sum(rate(k6_http_req_failed_total[1m])) / sum(rate(k6_http_reqs_total[1m]))",
+          "expr": "avg(k6_http_req_failed_rate)",
           "legendFormat": "erro %",
           "refId": "A"
         }
@@ -108,17 +108,17 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum(rate(k6_http_req_duration_bucket[1m])) by (le)) * 1000",
+          "expr": "histogram_quantile(0.99, sum(rate(k6_http_req_duration_seconds[1m]))) * 1000",
           "legendFormat": "p99",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(k6_http_req_duration_bucket[1m])) by (le)) * 1000",
+          "expr": "histogram_quantile(0.95, sum(rate(k6_http_req_duration_seconds[1m]))) * 1000",
           "legendFormat": "p95",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(0.50, sum(rate(k6_http_req_duration_bucket[1m])) by (le)) * 1000",
+          "expr": "histogram_quantile(0.50, sum(rate(k6_http_req_duration_seconds[1m]))) * 1000",
           "legendFormat": "p50",
           "refId": "C"
         }
@@ -149,8 +149,8 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(k6_http_req_duration_bucket[1m])) by (le, url)) * 1000",
-          "legendFormat": "p95 {{url}}",
+          "expr": "histogram_quantile(0.95, sum(rate(k6_http_req_duration_seconds[1m])) by (name)) * 1000",
+          "legendFormat": "p95 {{name}}",
           "refId": "A"
         }
       ],

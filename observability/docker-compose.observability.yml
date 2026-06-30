@@ -9,8 +9,9 @@
 #   grafana      256 MB   — dashboards
 #   alertmanager  64 MB   — roteamento de alertas
 #
-# Pré-requisito:
+# Pré-requisito (obrigatório — sem o .env a stack não sobe com credenciais corretas):
 #   cp observability/.env.observability.example observability/.env.observability
+#   # Gere uma senha própria: openssl rand -base64 32
 #
 # Para iniciar:
 #   npm run obs:up
@@ -55,6 +56,7 @@ services:
       - "--storage.tsdb.path=/prometheus"
       - "--storage.tsdb.retention.time=15d"
       - "--web.enable-remote-write-receiver"   # k6 faz push direto
+      - "--enable-feature=native-histograms"   # aceita histogramas nativos do k6
       - "--web.console.libraries=/etc/prometheus/console_libraries"
       - "--web.console.templates=/etc/prometheus/consoles"
       - "--log.level=warn"
@@ -133,7 +135,8 @@ services:
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
       GF_AUTH_DISABLE_LOGIN_FORM: "false"
-      GF_SECURITY_ADMIN_PASSWORD: ${GF_ADMIN_PASSWORD:-admin}
+      GF_SECURITY_ADMIN_USER: ${GF_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_ADMIN_PASSWORD}
       GF_LOG_LEVEL: warn
     networks:
       - observability_network
@@ -164,26 +167,6 @@ services:
           memory: 64M
     restart: unless-stopped
 
-  k6:
-    image: grafana/k6:latest
-    profiles: ["k6"]
-    env_file:
-      - path: ./.env.observability
-        required: false
-    environment:
-      K6_PROMETHEUS_RW_SERVER_URL: http://prometheus:9090/api/v1/write
-      K6_OUT: experimental-prometheus-rw
-      BASE_URL: ${K6_BASE_URL:-http://host.docker.internal:3333}
-      K6_TEST_NAME: ${K6_TEST_NAME:-oikos}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"  # acessa localhost do host em Linux
-    volumes:
-      - ../load-tests:/scripts
-      - ../data:/scripts/data
-    networks:
-      - observability_network
-    depends_on:
-      - prometheus
 
 networks:
   observability_network:

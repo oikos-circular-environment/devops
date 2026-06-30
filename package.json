@@ -8,15 +8,16 @@
     "obs:down": "docker compose -f observability/docker-compose.observability.yml down",
     "obs:ps": "docker compose -f observability/docker-compose.observability.yml ps",
     "obs:logs": "docker compose -f observability/docker-compose.observability.yml logs -f",
-    "test:k6": "docker compose -f observability/docker-compose.observability.yml run --rm k6 run /scripts/suite.ts",
-    "test:smoke": "docker compose -f observability/docker-compose.observability.yml run --rm k6 run /scripts/smoke.ts",
-    "test:load": "docker compose -f observability/docker-compose.observability.yml run --rm k6 run /scripts/load.ts",
-    "test:stress": "docker compose -f observability/docker-compose.observability.yml run --rm k6 run /scripts/stress.ts",
-    "test:spike": "docker compose -f observability/docker-compose.observability.yml run --rm k6 run /scripts/spike.ts",
-    "test:soak": "docker compose -f observability/docker-compose.observability.yml run --rm k6 run /scripts/soak.ts"
+    "test:k6": "dotenv -e load-tests/.env.k6 -- k6 run -o experimental-prometheus-rw load-tests/suite.ts",
+    "test:smoke": "dotenv -e load-tests/.env.k6 -- k6 run load-tests/smoke.ts",
+    "test:load": "dotenv -e load-tests/.env.k6 -- k6 run -o experimental-prometheus-rw --tag testid=load load-tests/load.ts",
+    "test:stress": "dotenv -e load-tests/.env.k6 -- k6 run -o experimental-prometheus-rw --tag testid=stress load-tests/stress.ts",
+    "test:spike": "dotenv -e load-tests/.env.k6 -- k6 run -o experimental-prometheus-rw --tag testid=spike load-tests/spike.ts",
+    "test:soak": "dotenv -e load-tests/.env.k6 -- k6 run -o experimental-prometheus-rw --tag testid=soak load-tests/soak.ts"
   },
   "devDependencies": {
     "@types/k6": "^2.0.0",
+    "dotenv-cli": "^11.0.0",
     "typescript": "^5.8.3"
   }
 }

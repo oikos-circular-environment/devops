@@ -1,10 +1,18 @@
 import { sleep } from "k6";
 import http from "k6/http";
 import { BASE_URL, makeOptions } from "./config/base-options.ts";
-import { authHeaders, getToken } from "./helpers/auth.ts";
+import { authHeaders, getToken, registerUser } from "./helpers/auth.ts";
 import { checkOk } from "./helpers/checks.ts";
+import {
+  fetchCategoryIds,
+  makeComplaintBody,
+  randomCategoryId,
+} from "./helpers/complaint-data.ts";
 
-declare const __ENV: Record<string, string>;
+declare const __VU: number;
+
+const USER_POOL_SIZE = 10;
+const TEST_PASSWORD = "K6Test@123";
 
 export const options = makeOptions(
   [
@@ -18,14 +26,30 @@ export const options = makeOptions(
   },
 );
 
-export function setup(): { token: string | null } {
-  const email = __ENV.TEST_USER_EMAIL;
-  const password = __ENV.TEST_USER_PASSWORD;
-  if (!email || !password) return { token: null };
-  return { token: getToken(BASE_URL, email, password) };
+export function setup(): { tokens: string[]; categoryIds: string[] } {
+  const categoryIds = fetchCategoryIds();
+  const runId = `${Date.now()}-${Math.floor(Math.random() * 9999)}`;
+  const tokens: string[] = [];
+
+  for (let i = 0; i < USER_POOL_SIZE; i++) {
+    const email = `k6-soak-${runId}-${i}@load.test`;
+    registerUser(BASE_URL, email, TEST_PASSWORD);
+    tokens.push(getToken(BASE_URL, email, TEST_PASSWORD));
+  }
+
+  return { tokens, categoryIds };
 }
 
-export default function ({ token }: { token: string | null }): void {
+export default function ({
+  tokens,
+  categoryIds,
+}: {
+  tokens: string[];
+  categoryIds: string[];
+}): void {
+  const token = tokens[(__VU - 1) % tokens.length];
+  const opts = authHeaders(token);
+
   checkOk(
     http.get(`${BASE_URL}/v1/market?lat=-16.4757&lon=-54.6685&radius=5000`),
     "market",
@@ -38,10 +62,20 @@ export default function ({ token }: { token: string | null }): void {
   );
   sleep(1);
 
-  if (token) {
-    const opts = authHeaders(token);
-    checkOk(http.get(`${BASE_URL}/v1/complaints`, opts), "complaints-list");
-    sleep(1);
+  checkOk(http.get(`${BASE_URL}/v1/complaints`, opts), "complaints-list");
+  sleep(1);
+
+  const id = randomCategoryId(categoryIds);
+  if (id) {
+    checkOk(
+      http.post(
+        `${BASE_URL}/v1/complaints`,
+        makeComplaintBody(id),
+        opts,
+      ),
+      "complaint-create",
+    );
+    sleep(2);
   }
 
   checkOk(http.get(`${BASE_URL}/v1/waste-categories`), "waste-categories");

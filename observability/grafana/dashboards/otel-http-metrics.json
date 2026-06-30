@@ -1,0 +1,330 @@
+{
+  "title": "Oikos API — HTTP Metrics (OTel)",
+  "uid": "oikos-otel-http",
+  "description": "Métricas HTTP via OpenTelemetry auto-instrumentation — duração, volume e erros por rota",
+  "tags": ["oikos", "api", "opentelemetry"],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "version": 3,
+  "time": { "from": "now-30m", "to": "now" },
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 1,
+  "templating": {
+    "list": [
+      {
+        "name": "method",
+        "label": "Método HTTP",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(oikos_http_server_duration_milliseconds_count, http_method)",
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {},
+        "refresh": 2,
+        "sort": 1,
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Duração Média por Rota (ms)",
+      "description": "Duração média das requisições HTTP por rota e método. Calculado como soma_duração / contagem. A coluna 'Rota' aparece após reiniciar a API com FastifyInstrumentation.",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "avg by (http_route, http_method) (\n  rate(oikos_http_server_duration_milliseconds_sum{http_method=~\"$method\"}[$__rate_interval])\n  /\n  rate(oikos_http_server_duration_milliseconds_count{http_method=~\"$method\"}[$__rate_interval])\n)",
+          "legendFormat": "{{http_method}} {{http_route}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": { "lineWidth": 2 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 500 },
+              { "color": "red", "value": 2000 }
+            ]
+          }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 2,
+      "title": "Top Rotas por Volume",
+      "description": "Distribuição do volume total de requisições entre as rotas no período selecionado.",
+      "type": "piechart",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (http_route, http_method) (increase(oikos_http_server_duration_milliseconds_count{http_method=~\"$method\"}[$__range]))",
+          "legendFormat": "{{http_method}} {{http_route}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short" }
+      },
+      "options": {
+        "pieType": "pie",
+        "displayLabels": ["percent"],
+        "tooltip": { "mode": "single" },
+        "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Top Rotas por Tempo Total (ms)",
+      "description": "Distribuição do tempo total consumido por cada rota — identifica quais endpoints consomem mais recursos.",
+      "type": "piechart",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (http_route, http_method) (increase(oikos_http_server_duration_milliseconds_sum{http_method=~\"$method\"}[$__range]))",
+          "legendFormat": "{{http_method}} {{http_route}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ms" }
+      },
+      "options": {
+        "pieType": "pie",
+        "displayLabels": ["percent"],
+        "tooltip": { "mode": "single" },
+        "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Taxa de Requisições (req/s)",
+      "description": "Volume de requisições por segundo por rota e método HTTP.",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (http_route, http_method) (rate(oikos_http_server_duration_milliseconds_count{http_method=~\"$method\"}[$__rate_interval]))",
+          "legendFormat": "{{http_method}} {{http_route}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": { "lineWidth": 2 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 5,
+      "title": "Erros por Rota (req/s)",
+      "description": "Taxa de erros 4xx (client errors) e 5xx (server errors) por rota.",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (http_route) (rate(oikos_http_server_duration_milliseconds_count{http_method=~\"$method\", http_status_code=~\"5..\"}[$__rate_interval]))",
+          "legendFormat": "5xx {{http_route}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (http_route) (rate(oikos_http_server_duration_milliseconds_count{http_method=~\"$method\", http_status_code=~\"4..\"}[$__rate_interval]))",
+          "legendFormat": "4xx {{http_route}}",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": { "lineWidth": 2 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 6,
+      "title": "Estatísticas por Rota",
+      "description": "Agregação total do período selecionado: volume, respostas por status code, tempo médio e taxa de erro por rota.",
+      "type": "table",
+      "gridPos": { "x": 0, "y": 16, "w": 24, "h": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (http_method, http_route) (increase(oikos_http_server_duration_milliseconds_count{http_method=~\"$method\"}[$__range]))",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "sum by (http_method, http_route) (increase(oikos_http_server_duration_milliseconds_count{http_method=~\"$method\", http_status_code=~\"2..\"}[$__range]))",
+          "legendFormat": "",
+          "refId": "B",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "sum by (http_method, http_route) (increase(oikos_http_server_duration_milliseconds_count{http_method=~\"$method\", http_status_code=~\"3..\"}[$__range]))",
+          "legendFormat": "",
+          "refId": "C",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "sum by (http_method, http_route) (increase(oikos_http_server_duration_milliseconds_count{http_method=~\"$method\", http_status_code=~\"4..\"}[$__range]))",
+          "legendFormat": "",
+          "refId": "D",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "sum by (http_method, http_route) (increase(oikos_http_server_duration_milliseconds_count{http_method=~\"$method\", http_status_code=~\"5..\"}[$__range]))",
+          "legendFormat": "",
+          "refId": "E",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "sum by (http_method, http_route) (increase(oikos_http_server_duration_milliseconds_count{http_method=~\"$method\", http_status_code=~\"4..|5..\"}[$__range]))",
+          "legendFormat": "",
+          "refId": "F",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "sum by (http_method, http_route) (increase(oikos_http_server_duration_milliseconds_sum{http_method=~\"$method\"}[$__range]))",
+          "legendFormat": "",
+          "refId": "G",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        { "id": "merge", "options": {} },
+        {
+          "id": "calculateField",
+          "options": {
+            "mode": "binaryOperation",
+            "binary": { "left": "Value #G", "operator": "/", "right": "Value #A" },
+            "alias": "Tempo Médio (ms)"
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "mode": "binaryOperation",
+            "binary": { "left": "Value #F", "operator": "/", "right": "Value #A" },
+            "alias": "Taxa de Erro"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true },
+            "renameByName": {
+              "http_method": "Método",
+              "http_route": "Rota",
+              "Value #A": "Total",
+              "Value #B": "2xx",
+              "Value #C": "3xx",
+              "Value #D": "4xx",
+              "Value #E": "5xx",
+              "Value #F": "Erros (4xx+5xx)",
+              "Value #G": "Tempo Total (ms)"
+            },
+            "indexByName": {
+              "http_method": 0,
+              "http_route": 1,
+              "Value #A": 2,
+              "Value #B": 3,
+              "Value #C": 4,
+              "Value #D": 5,
+              "Value #E": 6,
+              "Value #F": 7,
+              "Value #G": 8,
+              "Tempo Médio (ms)": 9,
+              "Taxa de Erro": 10
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "align": "auto", "displayMode": "auto" }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Taxa de Erro" },
+            "properties": [
+              { "id": "unit", "value": "percentunit" },
+              { "id": "custom.displayMode", "value": "color-background" },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "yellow", "value": 0.01 },
+                    { "color": "red", "value": 0.05 }
+                  ]
+                }
+              },
+              { "id": "custom.width", "value": 130 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Tempo Médio (ms)" },
+            "properties": [
+              { "id": "unit", "value": "ms" },
+              { "id": "custom.displayMode", "value": "color-background" },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "yellow", "value": 500 },
+                    { "color": "red", "value": 2000 }
+                  ]
+                }
+              },
+              { "id": "custom.width", "value": 150 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Tempo Total (ms)" },
+            "properties": [
+              { "id": "unit", "value": "ms" },
+              { "id": "custom.width", "value": 150 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Rota" },
+            "properties": [{ "id": "custom.width", "value": 280 }]
+          }
+        ]
+      },
+      "options": {
+        "sortBy": [{ "displayName": "Total", "desc": true }]
+      }
+    }
+  ]
+}
