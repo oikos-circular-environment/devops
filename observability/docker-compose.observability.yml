@@ -1,7 +1,7 @@
 # Stack de observabilidade local — NÃO incluir no docker-compose.prod.yml
 #
-# Alocação de memória (~1.4 GB):
-#   otelcol      256 MB   — recebe OTLP, faz fan-out para Tempo/Prometheus/Loki
+# Alocação de memória (~1.7 GB):
+#   otelcol      512 MB   — recebe OTLP, faz fan-out para Tempo/Prometheus/Loki
 #   prometheus   512 MB   — scrape + armazenamento de métricas
 #   loki         256 MB   — agregação de logs
 #   tempo        256 MB   — distributed tracing
@@ -36,8 +36,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
-    restart: unless-stopped
+          memory: 512M
+    restart: "no"
     depends_on:
       loki:
         condition: service_started
@@ -66,7 +66,7 @@ services:
       resources:
         limits:
           memory: 512M
-    restart: unless-stopped
+    restart: "no"
     depends_on:
       - otelcol
 
@@ -84,7 +84,7 @@ services:
       resources:
         limits:
           memory: 256M
-    restart: unless-stopped
+    restart: "no"
 
   tempo:
     image: grafana/tempo:2.7.0
@@ -101,7 +101,7 @@ services:
       resources:
         limits:
           memory: 256M
-    restart: unless-stopped
+    restart: "no"
 
   promtail:
     image: grafana/promtail:3.4.1
@@ -116,7 +116,7 @@ services:
       resources:
         limits:
           memory: 64M
-    restart: unless-stopped
+    restart: "no"
     depends_on:
       - loki
 
@@ -144,7 +144,7 @@ services:
       resources:
         limits:
           memory: 256M
-    restart: unless-stopped
+    restart: "no"
     depends_on:
       - prometheus
       - loki
@@ -165,7 +165,7 @@ services:
       resources:
         limits:
           memory: 64M
-    restart: unless-stopped
+    restart: "no"
 
 
 networks:

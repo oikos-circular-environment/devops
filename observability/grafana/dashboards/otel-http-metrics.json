@@ -6,7 +6,7 @@
   "refresh": "10s",
   "schemaVersion": 39,
   "version": 3,
-  "time": { "from": "now-30m", "to": "now" },
+  "time": { "from": "now-2h", "to": "now" },
   "timezone": "browser",
   "editable": true,
   "graphTooltip": 1,

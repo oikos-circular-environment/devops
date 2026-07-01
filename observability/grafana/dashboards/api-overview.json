@@ -5,7 +5,7 @@
   "tags": ["oikos", "api"],
   "refresh": "10s",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "time": { "from": "now-1h", "to": "now" },
   "timezone": "browser",
   "editable": true,
@@ -19,8 +19,8 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "sum(rate(oikos_http_server_request_duration_seconds_count[1m])) by (http_route, http_request_method)",
-          "legendFormat": "{{http_request_method}} {{http_route}}",
+          "expr": "sum(rate(oikos_http_server_duration_milliseconds_count[1m])) by (http_route, http_method)",
+          "legendFormat": "{{http_method}} {{http_route}}",
           "refId": "A"
         }
       ],
@@ -40,12 +40,12 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(oikos_http_server_request_duration_seconds_bucket[5m])) by (le, http_route)) * 1000",
+          "expr": "histogram_quantile(0.95, sum(rate(oikos_http_server_duration_milliseconds_bucket[5m])) by (le, http_route))",
           "legendFormat": "p95 {{http_route}}",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.50, sum(rate(oikos_http_server_request_duration_seconds_bucket[5m])) by (le, http_route)) * 1000",
+          "expr": "histogram_quantile(0.50, sum(rate(oikos_http_server_duration_milliseconds_bucket[5m])) by (le, http_route))",
           "legendFormat": "p50 {{http_route}}",
           "refId": "B"
         }
@@ -73,12 +73,12 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "sum(rate(oikos_http_server_request_duration_seconds_count{http_response_status_code=~\"5..\"}[1m])) by (http_route)",
+          "expr": "sum(rate(oikos_http_server_duration_milliseconds_count{http_status_code=~\"5..\"}[1m])) by (http_route)",
           "legendFormat": "5xx {{http_route}}",
           "refId": "A"
         },
         {
-          "expr": "sum(rate(oikos_http_server_request_duration_seconds_count{http_response_status_code=~\"4..\"}[1m])) by (http_route)",
+          "expr": "sum(rate(oikos_http_server_duration_milliseconds_count{http_status_code=~\"4..\"}[1m])) by (http_route)",
           "legendFormat": "4xx {{http_route}}",
           "refId": "B"
         }
@@ -125,7 +125,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "sum(rate(oikos_http_server_request_duration_seconds_count{http_response_status_code=\"429\"}[1m]))",
+          "expr": "sum(rate(oikos_http_server_duration_milliseconds_count{http_status_code=\"429\"}[1m]))",
           "legendFormat": "429/s",
           "refId": "A"
         }

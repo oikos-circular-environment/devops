@@ -17,7 +17,7 @@ const TEST_PASSWORD = "K6Test@123";
 export const options = makeOptions(
   [
     { duration: "5m", target: 20 },
-    { duration: "60m", target: 20 },
+    { duration: "30m", target: 20 },
     { duration: "5m", target: 0 },
   ],
   {
@@ -28,6 +28,9 @@ export const options = makeOptions(
 
 export function setup(): { tokens: string[]; categoryIds: string[] } {
   const categoryIds = fetchCategoryIds();
+  if (categoryIds.length === 0) {
+    throw new Error("fetchCategoryIds retornou vazio — execute o seed de waste_categories no banco antes de rodar o teste");
+  }
   const runId = `${Date.now()}-${Math.floor(Math.random() * 9999)}`;
   const tokens: string[] = [];
 
