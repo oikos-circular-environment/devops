@@ -35,13 +35,14 @@ T4 (precisa da VM pra testar de verdade, mesmo que os arquivos possam ser escrit
 - [x] `docker/docker-compose.prod.yml` — serviços `cadvisor` (128MB), `node-exporter` (64MB), `alloy` (128MB) — ver T7
 - [x] `docker/docker-compose.prod.yml` — nome do compose project mantido como `oikos-prod` (dashboards do T7 dependem disso)
 - [x] `docker/.env.prod.example` — criado, cobre todas as vars novas (versões de imagem, endpoints de observabilidade)
-- [x] `.gitignore` do `devops` atualizado: `docker/.env.prod`, `docker/certs/`, `docker/logs/` nunca commitados
+- [x] `.gitignore` do `devops` atualizado: `docker/.env.prod`, `docker/certs/` nunca commitados
 - [x] `nginx/nginx.conf` — roteia `api.oikos.company` → `api:3333`
 - [x] `nginx/nginx.conf` — roteia `oikos.company` → `web:3000`
 - [x] `nginx/nginx.conf` — roteia `grafana.oikos.company` → placeholder `__OBS_VM_PRIVATE_IP__` (substituído via `sed` no deploy, não envsubst do nginx — evita colidir com `$host`/`$remote_addr` nativos)
 - [x] `nginx/nginx.conf` — roteia `minio.oikos.company` → console do MinIO (porta 9001); porta 9000 (API S3) **não** exposta via nginx
 - [x] `nginx/nginx.conf` — TLS com certificado Cloudflare Origin CA (arquivo, de T5 — path `/etc/nginx/certs/`)
-- [x] `docker/systemd/oikos-web-restart.{service,timer}` — restart noturno (03:00) do `web` (mitigação do memory leak conhecido do Next.js — [vercel/next.js#88603](https://github.com/vercel/next.js/discussions/88603)). **Assume** que o deploy coloca os arquivos do `devops` em `/opt/oikos/` na VM — confirmar esse path quando T9/T4 definirem o layout real
+- [x] `docker/systemd/oikos-web-restart.{service,timer}` — restart noturno (03:00) do `web` (mitigação do memory leak conhecido do Next.js — [vercel/next.js#88603](https://github.com/vercel/next.js/discussions/88603)). Deploy coloca os arquivos do `devops` em `/opt/oikos/` na VM — confirmado
+- [x] `api` migrado pra logar via OTLP (`pino-opentelemetry-transport`) em vez de arquivo — sem volume `./logs` nem no `api` nem no `alloy`. Decisão consciente: sem buffer em disco, log gerado com o Alloy fora do ar se perde; aceito por ora, revisitar se virar problema real
 - [x] Build validado localmente (arquitetura nativa, não arm64 ainda): `docker build` de `api` e `web` passam; `web` testado rodando e respondendo HTTP 200
 - [ ] Build arm64 (via Buildx+QEMU) — pendente, fica pro T9 (CI já roda em arm64 nativamente via matriz/QEMU) ou validação manual quando a VM existir
 

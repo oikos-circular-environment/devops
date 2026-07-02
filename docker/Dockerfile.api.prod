@@ -43,9 +43,8 @@ COPY --from=builder /app/prisma/enums.prisma ./prisma/enums.prisma
 COPY --from=builder /app/prisma/migrations ./prisma/migrations
 COPY prisma.config.ts ./
 
-# Pino (logger.ts) escreve logs/server.log e logs/queries.log sempre (pino-roll, mkdir:true) —
-# diretório montado como volume no compose pra o Alloy conseguir tailar (ver observability/alloy/alloy-prod.alloy)
-RUN mkdir -p logs
+# Logs (logger.ts, pino-opentelemetry-transport) vão via OTLP pro Alloy — sem arquivo,
+# sem volume de logs (ver observability/alloy/alloy-prod.alloy).
 
 EXPOSE 3333
 

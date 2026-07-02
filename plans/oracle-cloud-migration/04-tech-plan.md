@@ -18,7 +18,7 @@
 | `nginx` | 64MB | — |
 | `cadvisor` | 128MB | métricas por container |
 | `node-exporter` | 64MB | métricas de host |
-| `alloy` | 128MB | substitui otelcol/promtail — unifica scrape de métricas + envio de logs |
+| `alloy` | 128MB | substitui otelcol — recebe traces/métricas/**logs** via OTLP direto da `api` (`pino-opentelemetry-transport`, sem arquivo/tail), + scrape de cadvisor/node-exporter |
 | **Total** | **~2,3GB** | de 12GB disponíveis na VM — folga grande pra crescimento |
 
 **Observabilidade de host + container**: `cAdvisor` expõe métrica por container (CPU, RAM, rede, disco, lendo do socket do Docker) e `node-exporter` expõe métrica de host (CPU total, RAM disponível, disco) — ambos só na `A1.Flex`. `Alloy` faz scrape dos dois e `remote_write`/`push` pro Prometheus/Loki na `E2.1.Micro` via IP privado. Reaproveita os 2 dashboards Grafana já desenhados em `docs/infra-monitoring-producao.md` ("Infra Overview" — CPU/RAM/disco do host + por container; "Container Detail" — dropdown por serviço com throttling de CPU, working set vs. cache, restart count) — só adaptar o filtro de `container_label_com_docker_compose_project` pro nome do novo `docker-compose.prod.yml` (manter `oikos-prod` por continuidade).

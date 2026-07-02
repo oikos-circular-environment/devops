@@ -7,9 +7,6 @@ docker/.env.prod
 # Certificados Cloudflare Origin CA (materializados pelo deploy.yml, nunca commitados)
 docker/certs/
 
-# Logs persistidos da api (montados como volume)
-docker/logs/
-
 # Dados gerados pelos scripts de seed
 data/*.json
 

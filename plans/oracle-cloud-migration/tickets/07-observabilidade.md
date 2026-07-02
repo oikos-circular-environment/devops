@@ -31,15 +31,17 @@ T4 (precisa das duas VMs existindo e se comunicando por IP privado).
 - [ ] `observability/docker-compose.observability.yml` — `alertmanager`, limite re-tunado (~25MB)
 - [ ] Soma dos 5 limites fica em ~875MB, com folga pro SO/Docker dentro de 1GB
 
-**Na `A1.Flex`** (dentro do `docker-compose.prod.yml` de T6):
-- [ ] Serviço `cadvisor` — métrica por container (CPU, RAM, rede, disco), 128MB
-- [ ] Serviço `node-exporter` — métrica de host (CPU, RAM, disco), 64MB
-- [ ] Serviço `alloy` (substitui otelcol/promtail) — 128MB
-- [ ] Config `alloy-prod.alloy` — scrape `cadvisor:8080`
-- [ ] Config `alloy-prod.alloy` — scrape `node-exporter:9100`
-- [ ] Config `alloy-prod.alloy` — `remote_write` de métricas pro Prometheus da `E2.1.Micro` via IP privado
-- [ ] Config `alloy-prod.alloy` — `push` de logs pro Loki da `E2.1.Micro` via IP privado
-- [ ] Config `alloy-prod.alloy` — envio de traces (OTLP gRPC) pro Tempo da `E2.1.Micro` via IP privado
+**Na `A1.Flex`** (dentro do `docker-compose.prod.yml` de T6 — ✅ escrito e validado com `alloy validate`):
+- [x] Serviço `cadvisor` — métrica por container (CPU, RAM, rede, disco), 128MB
+- [x] Serviço `node-exporter` — métrica de host (CPU, RAM, disco), 64MB
+- [x] Serviço `alloy` (substitui otelcol) — 128MB
+- [x] Config `alloy-prod.alloy` — recebe logs via OTLP da `api` (`pino-opentelemetry-transport`, não mais arquivo/tail), converte pra Loki via `otelcol.exporter.loki` com hint `loki.resource.labels` (`service.name`, `deployment.environment.name`) — sem isso os atributos não viram labels do Loki
+- [x] Config `alloy-prod.alloy` — scrape `cadvisor:8080`
+- [x] Config `alloy-prod.alloy` — scrape `node-exporter:9100`
+- [x] Config `alloy-prod.alloy` — `remote_write` de métricas pro Prometheus da `E2.1.Micro` via IP privado
+- [x] Config `alloy-prod.alloy` — `push` de logs pro Loki da `E2.1.Micro` via IP privado
+- [x] Config `alloy-prod.alloy` — envio de traces (OTLP gRPC) pro Tempo da `E2.1.Micro` via IP privado
+- [x] `sys.env(...)` usado em vez de `env(...)` (deprecado — `alloy validate` falhava com `env()`, achado só ao validar de verdade, não só formatar)
 
 **Dashboards:**
 - [ ] Adaptar dashboard "Infra Overview" pro novo ambiente (filtro `container_label_com_docker_compose_project="oikos-prod"` continua válido)

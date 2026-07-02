@@ -1,8 +1,12 @@
-// Alloy consolidado — substitui otelcol (dev) + promtail (prod antigo) numa coisa só.
-// Roda na A1.Flex, envia tudo pra Prometheus/Loki/Tempo na E2.1.Micro via IP privado da VCN.
+// Alloy consolidado — substitui otelcol (dev). Roda na A1.Flex, envia tudo pra
+// Prometheus/Loki/Tempo na E2.1.Micro via IP privado da VCN.
 // Variáveis de ambiente necessárias: PROMETHEUS_REMOTE_WRITE_URL, LOKI_URL, TEMPO_ENDPOINT.
+//
+// Logs vão 100% via OTLP (pino-opentelemetry-transport no api) — sem arquivo, sem tail.
+// Trade-off consciente: se o Alloy cair, logs gerados nessa janela se perdem (sem buffer em
+// disco). Aceito por ora; revisitar se isso causar problema real em produção.
 
-// ── OTLP: recebe traces + métricas direto da aplicação (api) ───────────────
+// ── OTLP: recebe traces + métricas + logs direto da aplicação (api) ────────
 // api aponta OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 otelcol.receiver.otlp "app" {
 	http {
@@ -15,6 +19,7 @@ otelcol.receiver.otlp "app" {
 	output {
 		traces  = [otelcol.processor.batch.app.input]
 		metrics = [otelcol.processor.batch.app.input]
+		logs    = [otelcol.processor.batch.app.input]
 	}
 }
 
@@ -22,12 +27,31 @@ otelcol.processor.batch "app" {
 	output {
 		traces  = [otelcol.exporter.otlp.tempo.input]
 		metrics = [otelcol.exporter.prometheus.app.input]
+		logs    = [otelcol.processor.attributes.loki_labels.input]
 	}
+}
+
+// OTLP não converte atributos em labels do Loki automaticamente — precisa do hint
+// `loki.resource.labels` explícito (ver docs do otelcol.exporter.loki).
+otelcol.processor.attributes "loki_labels" {
+	action {
+		key    = "loki.resource.labels"
+		action = "insert"
+		value  = "service.name, deployment.environment.name"
+	}
+
+	output {
+		logs = [otelcol.exporter.loki.app.input]
+	}
+}
+
+otelcol.exporter.loki "app" {
+	forward_to = [loki.write.monitoring.receiver]
 }
 
 otelcol.exporter.otlp "tempo" {
 	client {
-		endpoint = env("TEMPO_ENDPOINT") // ex: 10.x.x.x:4317
+		endpoint = sys.env("TEMPO_ENDPOINT") // ex: 10.x.x.x:4317
 		tls {
 			insecure = true // rede privada da VCN, sem TLS entre as duas VMs
 		}
@@ -53,23 +77,12 @@ prometheus.scrape "node_exporter" {
 
 prometheus.remote_write "monitoring" {
 	endpoint {
-		url = env("PROMETHEUS_REMOTE_WRITE_URL") // ex: http://10.x.x.x:9090/api/v1/write
+		url = sys.env("PROMETHEUS_REMOTE_WRITE_URL") // ex: http://10.x.x.x:9090/api/v1/write
 	}
-}
-
-// ── Logs (arquivo — Pino/pino-roll escreve em logs/server.log e logs/queries.log,
-//    NÃO vai via OTLP; só traces/métricas usam OTLP) ─────────────────────────
-local.file_match "oikos" {
-	path_targets = [{ __path__ = "/var/log/oikos/*.log", job = "oikos-api" }]
-}
-
-loki.source.file "oikos" {
-	targets    = local.file_match.oikos.targets
-	forward_to = [loki.write.monitoring.receiver]
 }
 
 loki.write "monitoring" {
 	endpoint {
-		url = env("LOKI_URL") // ex: http://10.x.x.x:3100/loki/api/v1/push
+		url = sys.env("LOKI_URL") // ex: http://10.x.x.x:3100/loki/api/v1/push
 	}
 }

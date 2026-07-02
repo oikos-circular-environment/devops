@@ -120,8 +120,6 @@ services:
       APP_PUBLIC_URL: https://api.oikos.company
       LOG_LEVEL: info
       OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
-    volumes:
-      - ./logs:/app/logs
     deploy:
       resources:
         limits:
@@ -217,7 +215,6 @@ services:
       TEMPO_ENDPOINT: ${TEMPO_ENDPOINT}
     volumes:
       - ../observability/alloy/alloy-prod.alloy:/etc/alloy/config.alloy:ro
-      - ./logs:/var/log/oikos:ro
     command: run --server.http.listen-addr=0.0.0.0:12345 --stability.level=public-preview /etc/alloy/config.alloy
     depends_on:
       - cadvisor
