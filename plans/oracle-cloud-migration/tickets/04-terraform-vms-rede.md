@@ -1,6 +1,6 @@
 # T4 — `devops`: Terraform — VMs + Rede
 
-**Status**: Em andamento — credenciais cadastradas, workspace conectado via VCS, código Terraform escrito e validado (`fmt`/`init`/`validate`). Falta rodar o primeiro `plan`/`apply` e testar SSH nas VMs. Processo completo de como as credenciais foram obtidas está documentado em [`docs/terraform-cloud-credentials-setup.md`](../../../docs/terraform-cloud-credentials-setup.md).
+**Status**: Em andamento — credenciais cadastradas, workspace conectado via VCS (branch `production`), código Terraform escrito e validado localmente (`fmt`/`init`/`validate`). Primeiro `plan` real já rodou no Terraform Cloud com sucesso (7 recursos a criar, 0 erros — ver run `run-KmXxT6kMVWjUvvUk`). **`apply` intencionalmente adiado** (pausa pedida pelo usuário pra fechar o resto do planejamento antes de provisionar de verdade) — não é bloqueio técnico. Processo completo de como as credenciais foram obtidas, incluindo um bug encontrado no `oci setup keys` (gera chave criptografada mesmo pedindo "sem senha" via flag), está documentado em [`docs/terraform-cloud-credentials-setup.md`](../../../docs/terraform-cloud-credentials-setup.md).
 **Repositório**: `oikos-circular-environment/devops`
 
 ## Escopo
@@ -34,7 +34,8 @@ Nenhuma.
 - [x] cloud-init (ambas as VMs): instala Docker, cria usuário `deploy` (grupo `docker`, chave SSH própria), hardening básico de SSH
 - [x] cloud-init (só `E2.1.Micro`): cria e ativa swap file de 8-10GB
 - [x] Confirmar que cloud-init **não** inclui secrets nem compose files (isso é do deploy, T9)
-- [ ] `terraform plan` revisado e `apply` rodado com sucesso
+- [x] `terraform plan` revisado (7 recursos a criar, 0 erros, warning cosmético de variável não usada já corrigido)
+- [ ] `apply` rodado com sucesso — **adiado de propósito**, aguardando o restante do planejamento fechar antes de provisionar
 - [ ] IPs públicos das duas VMs anotados (necessários pra T5)
 - [ ] SSH manual de teste com o usuário `deploy` funcionando nas duas VMs
 
@@ -52,6 +53,8 @@ São **3 coisas separadas** que depois convergem como variáveis do workspace no
 2. **API keys** → **Add API key** → **Generate API key pair** → **Download private key**
 3. A própria tela mostra um snippet com `tenancy` (OCID), `user` (OCID), `fingerprint` e `region` — guardar esses 4 valores + o arquivo da chave privada
 
+**Alternativa via CLI** (evita passar pelo console): `openssl genrsa -out chave.pem 2048` + `openssl rsa -pubout -in chave.pem -out chave_public.pem`, depois `oci iam user api-key upload --user-id <ocid> --key-file chave_public.pem` (retorna o fingerprint). **Não usar `oci setup keys --passphrase "N/A"`** — essa flag não reconhece o sentinela "N/A" como "sem senha" (só funciona digitando interativamente), então gera uma chave `ENCRYPTED PRIVATE KEY` que o provider Terraform não consegue ler (erro `did not find a proper configuration for private key`). Detalhes em [`docs/terraform-cloud-credentials-setup.md`](../../../docs/terraform-cloud-credentials-setup.md).
+
 ### b) Token de API do Cloudflare (autentica o provider Terraform com o Cloudflare)
 
 1. Dashboard do Cloudflare → **My Profile** → **API Tokens** → **Create Token**
@@ -63,5 +66,7 @@ São **3 coisas separadas** que depois convergem como variáveis do workspace no
 1. Criar conta em app.terraform.io (se ainda não tiver)
 2. Criar uma organização e um workspace, conectado via VCS ao repo `devops`, apontando pra pasta `infra/terraform/`
 3. No workspace → **Variables** → adicionar como *Terraform variables* (marcadas **sensitive**): as 4 credenciais OCI + o token Cloudflare
+
+**Cuidado ao colar a chave privada (valor multi-linha) na UI**: colar um PEM multi-linha no campo de valor às vezes achata tudo numa linha só, quebrando o parse (mesmo erro `did not find a proper configuration for private key` acima). Se acontecer, é mais confiável atualizar a variável via API lendo o arquivo direto do disco (`PATCH /vars/{id}` com o conteúdo de `open(caminho).read()`) do que via copiar/colar no navegador — exemplo documentado em [`docs/terraform-cloud-credentials-setup.md`](../../../docs/terraform-cloud-credentials-setup.md).
 
 Assim que isso estiver feito, o restante da ticket (escrever os `.tf` e rodar `apply`) pode prosseguir.
