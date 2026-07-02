@@ -17,6 +17,12 @@
 #   npm run obs:up
 #
 # Acessar Grafana: http://localhost:3000
+#
+# Deploy em produção (E2.1.Micro, 1GB) - ver docker-compose.observability.prod.yml
+# (T7): limites de memória re-tunados pros 5 serviços que rodam lá, e só esses
+# 5 sobem (otelcol/promtail são substituídos pelo Alloy na A1.Flex e ficam de
+# fora do `up` de produção). Esse arquivo base não muda para não afetar o dev
+# local já validado.
 
 name: oikos-obs
 

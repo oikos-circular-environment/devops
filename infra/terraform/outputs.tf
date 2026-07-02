@@ -29,3 +29,13 @@ output "origin_private_key_pem" {
   value       = module.dns.origin_private_key_pem
   sensitive   = true
 }
+
+output "backup_bucket_name" {
+  description = "Nome do bucket de backup no Object Storage"
+  value       = module.storage.bucket_name
+}
+
+output "backup_namespace" {
+  description = "Namespace do Object Storage - os scripts de backup usam isso pra montar a URL do bucket"
+  value       = module.storage.namespace
+}
