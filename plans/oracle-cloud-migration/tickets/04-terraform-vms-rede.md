@@ -1,6 +1,8 @@
 # T4 — `devops`: Terraform — VMs + Rede
 
-**Status**: Em andamento — credenciais cadastradas, workspace conectado via VCS (branch `production`), código Terraform escrito e validado localmente (`fmt`/`init`/`validate`). Primeiro `plan` real já rodou no Terraform Cloud com sucesso (7 recursos a criar, 0 erros — ver run `run-KmXxT6kMVWjUvvUk`). **`apply` intencionalmente adiado** (pausa pedida pelo usuário pra fechar o resto do planejamento antes de provisionar de verdade) — não é bloqueio técnico. Processo completo de como as credenciais foram obtidas, incluindo um bug encontrado no `oci setup keys` (gera chave criptografada mesmo pedindo "sem senha" via flag), está documentado em [`docs/terraform-cloud-credentials-setup.md`](../../../docs/terraform-cloud-credentials-setup.md).
+**Status**: Quase pronta — `apply` rodou com sucesso, as duas VMs e a rede existem de verdade na OCI. SSH testado e funcionando na `A1.Flex`; a `E2.1.Micro` teve um bug real de rede achado no teste de SSH (ver abaixo), correção em andamento. Processo completo de credenciais, do bug do `oci setup keys`, do bug do IPv6 na Security List e do bug de rede da subnet privada está documentado em [`docs/terraform-cloud-credentials-setup.md`](../../../docs/terraform-cloud-credentials-setup.md). Descoberta durante o planejamento: falta liberar portas internas de observabilidade na Security List (movido pra T7, ver checklist lá) — a OCI não libera tráfego intra-subnet automaticamente.
+
+**Bug de rede encontrado ao testar SSH na `E2.1.Micro`**: `cloud-init` falhou ao instalar o Docker (`apt` com timeout) porque a subnet compartilhada só tinha rota via Internet Gateway — e um Internet Gateway na OCI só roteia tráfego de instância **com IP público**. A `E2.1.Micro` (sem IP público, por design) não tinha rota nenhuma pra internet. Correção: VCN passou a ter 2 subnets — pública (`A1.Flex`, rota → Internet Gateway) e privada (`E2.1.Micro`, rota → **NAT Gateway**, novo recurso). Detalhes em `docs/infrastructure.md`.
 **Repositório**: `oikos-circular-environment/devops`
 
 ## Escopo
@@ -35,9 +37,16 @@ Nenhuma.
 - [x] cloud-init (só `E2.1.Micro`): cria e ativa swap file de 8-10GB
 - [x] Confirmar que cloud-init **não** inclui secrets nem compose files (isso é do deploy, T9)
 - [x] `terraform plan` revisado (7 recursos a criar, 0 erros, warning cosmético de variável não usada já corrigido)
-- [ ] `apply` rodado com sucesso — **adiado de propósito**, aguardando o restante do planejamento fechar antes de provisionar
-- [ ] IPs públicos das duas VMs anotados (necessários pra T5)
+- [x] `apply` rodado com sucesso — precisou de 1 correção no meio do caminho (regras IPv6 na Security List eram inválidas pra uma VCN sem IPv6 habilitado; removidas). VCN, internet gateway e route table sobreviveram ao primeiro apply parcial; security list, subnet e as 2 instâncias entraram no apply seguinte
+- [x] IPs públicos das duas VMs anotados (necessários pra T5) — ver tabela abaixo
 - [ ] SSH manual de teste com o usuário `deploy` funcionando nas duas VMs
+
+**IPs (saída do `terraform apply`)**:
+
+| VM | IP público | IP privado |
+|---|---|---|
+| `oikos-app` (A1.Flex) | `204.216.187.155` | `10.0.1.227` |
+| `oikos-observability` (E2.1.Micro) | — (sem IP público, por design) | `10.0.1.195` |
 
 ## Definição de Pronto
 

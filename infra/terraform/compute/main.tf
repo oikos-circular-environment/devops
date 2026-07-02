@@ -42,7 +42,7 @@ resource "oci_core_instance" "app" {
   }
 
   create_vnic_details {
-    subnet_id        = var.subnet_id
+    subnet_id        = var.subnet_id_public
     assign_public_ip = true
     hostname_label   = "oikos-app"
   }
@@ -69,7 +69,7 @@ resource "oci_core_instance" "observability" {
   shape               = "VM.Standard.E2.1.Micro"
 
   create_vnic_details {
-    subnet_id        = var.subnet_id
+    subnet_id        = var.subnet_id_private
     assign_public_ip = false
     hostname_label   = "oikos-observability"
   }

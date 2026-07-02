@@ -144,6 +144,21 @@ Depois de corrigir a chave (passo 3), um `plan` disparado manualmente via API (`
 
 Runs podem ser disparados sem novo commit quando só a *configuration* já ingerida importa (ex: reprocessar depois de corrigir uma variável) — usando a mesma `configuration-version` num novo `POST /runs`, em vez de esperar um push novo no VCS.
 
+**Problema recorrente**: em pelo menos 2 ocasiões, um `merge` de PR pra `production` (via botão "Merge pull request" do GitHub, commit de 2 parents) não disparou run automaticamente, mesmo com o branch trigger configurado certinho e o file-trigger batendo. A configuration version *foi* ingerida (confirmado via `GET /configuration-versions`), só não virou run sozinha. Sem acesso aos logs de entrega do webhook do GitHub App (não é um webhook clássico por-repositório, não aparece em `gh api repos/.../hooks`), não foi possível confirmar a causa raiz — suspeita não comprovada é o cálculo de "arquivos alterados" do push se confundir com merge commits de 2 parents. Workaround que funcionou 100% das vezes: disparar o run manualmente via API reaproveitando a `configuration-version` já ingerida (mesmo comando acima).
+
+## 7. Bug de rede: subnet privada sem rota pra internet
+
+No primeiro `apply` completo, o `cloud-init` da `E2.1.Micro` falhou ao instalar o Docker — `apt` dava timeout tentando alcançar os mirrors do Ubuntu. Causa: a subnet original era compartilhada pelas 2 VMs com só um Internet Gateway na route table. Na OCI, **um Internet Gateway só roteia tráfego de/para instâncias com IP público** — a `E2.1.Micro` (sem IP público, por design) simplesmente não tinha como sair pra internet, mesmo com a rota `0.0.0.0/0 → Internet Gateway` presente na route table.
+
+Diagnóstico feito direto na VM via SSH (depois de descobrir que `-J`/ProxyJump não herda `-i` explícito do comando externo — precisa de `-o ProxyCommand="ssh -i <chave> -W %h:%p usuario@bastion"` em vez de `-J` quando a chave não está no `ssh-agent` nem é uma das default (`~/.ssh/id_*`)):
+
+```bash
+ssh -i chave.key -o ProxyCommand="ssh -i chave.key -W %h:%p deploy@<ip-publico-bastion>" deploy@<ip-privado-alvo> \
+  "sudo cloud-init status --long; sudo tail -60 /var/log/cloud-init-output.log"
+```
+
+**Correção**: VCN passou de 1 subnet compartilhada pra 2 subnets — pública (`A1.Flex`, rota → Internet Gateway) e privada (`E2.1.Micro`, rota → **NAT Gateway**, recurso novo, sem custo por hora na OCI). Cada subnet com sua própria route table; a Security List continua compartilhada entre as duas (as regras de 443/22 são inofensivas na subnet privada, já que não há IP público pra alcançar de qualquer forma).
+
 ## Referências
 
 - [Install Terraform / OCI CLI (tutorial HashiCorp)](https://developer.hashicorp.com/terraform/tutorials/oci-get-started/install-cli)

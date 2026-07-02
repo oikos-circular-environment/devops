@@ -1,6 +1,11 @@
-output "subnet_id" {
-  description = "OCID da subnet compartilhada pelas duas VMs"
-  value       = oci_core_subnet.this.id
+output "subnet_id_public" {
+  description = "OCID da subnet publica (VM A1.Flex)"
+  value       = oci_core_subnet.public.id
+}
+
+output "subnet_id_private" {
+  description = "OCID da subnet privada, sem IP publico, saida via NAT (VM E2.1.Micro)"
+  value       = oci_core_subnet.private.id
 }
 
 output "vcn_id" {

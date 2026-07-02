@@ -23,6 +23,9 @@ T4 (precisa das duas VMs existindo e se comunicando por IP privado).
 
 ## Checklist
 
+**Rede (pré-requisito, antes de qualquer coisa nessa ticket funcionar de ponta a ponta):**
+- [ ] `infra/terraform/network/` — adicionar regras de ingresso na Security List liberando, só a partir do CIDR da subnet privada (`10.0.1.0/24`, não pra internet): Prometheus `remote_write` (9090), Loki `push` (3100), Tempo OTLP gRPC (4317), Grafana UI (3000). Achado ao planejar a T4: a OCI **não libera tráfego entre VMs da mesma subnet automaticamente** — precisa de regra explícita mesmo sendo intra-VCN, diferente de outras clouds. Sem isso o `nginx` da `A1.Flex` não alcança o Grafana, e o Alloy da `A1.Flex` não consegue mandar métricas/logs/traces pra `E2.1.Micro`.
+
 **Na `E2.1.Micro`:**
 - [ ] `observability/docker-compose.observability.yml` — `prometheus`, limite re-tunado (~200MB)
 - [ ] `observability/docker-compose.observability.yml` — `loki`, limite re-tunado (~150MB)
