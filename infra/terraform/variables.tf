@@ -33,3 +33,10 @@ variable "cloudflare_api_token" {
   description = "Account API Token da Cloudflare. Usado aqui so pra ler os IP ranges oficiais na Security List; registros DNS e zona ficam a cargo da ticket T5"
   sensitive   = true
 }
+
+variable "cloudflare_account_id" {
+  type        = string
+  description = "Account ID da Cloudflare. Nao usado ainda pelo T4 - declarado so pra silenciar o warning de variavel nao declarada, sera consumido a partir da ticket T5 (DNS)"
+  sensitive   = true
+  default     = null
+}

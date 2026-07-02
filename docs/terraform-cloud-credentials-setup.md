@@ -44,25 +44,39 @@ Com a sessão autenticada, esses valores foram extraídos direto (sem precisar a
 
 O *session token* do passo 1 expira em ~1h e não serve para o Terraform Cloud (execução remota, sem interação humana). Foi gerado um **par de chaves de API dedicado**, separado da chave SSH que já existia (`/media/ccrs/development/ccrs/oracle/ssh-key-2026-06-30.key`, usada só pro usuário `deploy` das VMs) — **decisão deliberada**: misturar as duas aumentaria o raio de impacto caso uma delas vazasse (SSH = acesso à VM; API key = poder de criar/destruir toda a infra via Terraform).
 
+**Tentativa inicial (com bug — não usar)**:
+
 ```bash
 mkdir -p ~/.oci/terraform-api-key
 oci setup keys --key-name terraform-oikos --output-dir ~/.oci/terraform-api-key --passphrase "N/A"
 ```
 
-> Nota: a flag `--no-passphrase` **não existe** nessa versão da CLI (3.89.0), apesar de aparecer em exemplos antigos por aí. O jeito certo de gerar sem senha é `--passphrase "N/A"` (literal, é o que o prompt interativo pede).
+O prompt interativo do `oci setup keys` diz `("N/A" for no passphrase)`, mas esse sentinela **só é reconhecido quando digitado interativamente**. Passado via flag `--passphrase "N/A"`, a CLI trata "N/A" como senha literal e gera uma chave `-----BEGIN ENCRYPTED PRIVATE KEY-----` de verdade. Isso só foi descoberto depois, no primeiro `terraform plan` real no Terraform Cloud, com o erro:
 
-Isso gera:
-- `~/.oci/terraform-api-key/terraform-oikos.pem` — chave privada, fica só local
-- `~/.oci/terraform-api-key/terraform-oikos_public.pem` — chave pública
+```
+Error: can not create client, bad configuration: did not find a proper configuration for private key
+```
+
+(o provider `oci` não tem como decifrar uma chave criptografada sem a senha, e não passamos `private_key_password` nenhuma). Rodar `openssl rsa -check -noout -in arquivo.pem` teria pego isso na hora (mostra `BEGIN ENCRYPTED PRIVATE KEY` no `head -1`).
+
+**Correção — gerar via `openssl` direto, sem depender do sentinela da CLI**:
+
+```bash
+openssl genrsa -out terraform-oikos-v2.pem 2048
+openssl rsa -pubout -in terraform-oikos-v2.pem -out terraform-oikos-v2_public.pem
+openssl rsa -in terraform-oikos-v2.pem -check -noout   # confirma "RSA key ok", sem pedir senha
+```
 
 A pública foi registrada na conta OCI (retorna o fingerprint):
 
 ```bash
 oci iam user api-key upload \
   --user-id <user_ocid> \
-  --key-file ~/.oci/terraform-api-key/terraform-oikos_public.pem \
+  --key-file ~/.oci/terraform-api-key/terraform-oikos-v2_public.pem \
   --auth security_token
 ```
+
+A chave antiga (quebrada) ficou registrada na conta OCI, ainda ativa mas sem uso — remover via `oci iam user api-key delete --user-id <user_ocid> --fingerprint <fingerprint-antigo>` quando for conveniente.
 
 ## 4. Cloudflare — Account API Token
 
@@ -94,7 +108,26 @@ Todas categoria `terraform`. As 4 primeiras marcadas **sensitive** (nunca mais a
 | `cloudflare_account_id` | sim | dashboard Cloudflare (passo 4) |
 | `cloudflare_api_token` | sim | dashboard Cloudflare (passo 4) |
 
-Todas criadas manualmente pela UI (colar direto, sem passar o valor pelo terminal/clipboard persistente) — decisão tomada porque escrever segredos via script/API é uma ação sensível o suficiente pra preferir o caminho manual.
+Criadas manualmente pela UI (colar direto, sem passar o valor pelo terminal/clipboard persistente) — decisão tomada porque escrever segredos via script/API é uma ação sensível o suficiente pra preferir o caminho manual.
+
+**Problema encontrada**: colar um valor multi-linha (a `private_key`, especificamente) no campo de texto da UI achatou as quebras de linha, gerando o mesmo erro `did not find a proper configuration for private key` mesmo com uma chave `openssl` válida. O parser de PEM da OCI exige quebras de linha reais separando `-----BEGIN/END-----` do corpo em base64. Corrigido atualizando a variável via API, lendo o arquivo direto do disco (preserva as quebras de linha exatas):
+
+```bash
+TOKEN=$(python3 -c "import json; print(json.load(open('~/.terraform.d/credentials.tfrc.json'))['credentials']['app.terraform.io']['token'])")
+python3 -c "
+import json, urllib.request
+private_key = open('~/.oci/terraform-api-key/terraform-oikos-v2.pem').read()
+payload = {'data': {'type': 'vars', 'id': '<var-id>', 'attributes': {'value': private_key}}}
+req = urllib.request.Request(
+    'https://app.terraform.io/api/v2/vars/<var-id>',
+    data=json.dumps(payload).encode(),
+    headers={'Authorization': 'Bearer $TOKEN', 'Content-Type': 'application/vnd.api+json'},
+    method='PATCH')
+urllib.request.urlopen(req)
+"
+```
+
+Lição: pra valores sensíveis multi-linha (chaves privadas, certificados), preferir sempre ler o arquivo direto via API a copiar/colar num campo de UI.
 
 ### Conexão VCS
 
@@ -104,6 +137,12 @@ Todas criadas manualmente pela UI (colar direto, sem passar o valor pelo termina
 - Trigger: **path-based**, pattern `infra/terraform/**` (só dispara run quando algo dentro dessa pasta muda — decisão consciente porque o repo `devops` é monorepo e tem outras pastas, como `docker/`, que são deploy de aplicação via GitHub Actions/SSH, um pipeline totalmente separado do Terraform — ver ticket `09-deploy-pipeline.md`)
 
 **Problema conhecido**: a instalação do GitHub App pode falhar com `Failed to install GitHub App / Please disable pop-up blocker` em navegadores com bloqueio agressivo de popup (ex: Brave Shields). Resolvido desabilitando o Shields/pop-up blocker pro domínio `app.terraform.io` durante o fluxo.
+
+## 6. Primeiro `plan` validado
+
+Depois de corrigir a chave (passo 3), um `plan` disparado manualmente via API (`POST /runs`, reaproveitando a configuration version já ingerida do push pra `production`) rodou com sucesso: **7 recursos a criar, 0 a mudar, 0 a destruir** (VCN, internet gateway, route table, security list, subnet, e as 2 `oci_core_instance`), sem erros. `apply` fica pendente de aprovação manual (auto-apply desligado de propósito).
+
+Runs podem ser disparados sem novo commit quando só a *configuration* já ingerida importa (ex: reprocessar depois de corrigir uma variável) — usando a mesma `configuration-version` num novo `POST /runs`, em vez de esperar um push novo no VCS.
 
 ## Referências
 
