@@ -15,3 +15,13 @@ observability/prometheus/
 observability/grafana/data/
 observability/loki/chunks/
 observability/tempo/blocks/
+
+# Terraform (state fica remoto no Terraform Cloud, nunca local)
+infra/terraform/**/.terraform/
+infra/terraform/**/*.tfstate
+infra/terraform/**/*.tfstate.*
+infra/terraform/**/crash.log
+infra/terraform/**/*.tfvars
+infra/terraform/**/*.tfvars.json
+infra/terraform/**/override.tf
+infra/terraform/**/override.tf.json
