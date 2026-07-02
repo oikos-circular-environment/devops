@@ -6,6 +6,23 @@
 - `A1.Flex` (2 OCPU/12GB): `postgresql`, `redis`, `minio`, `createbuckets`, `api`, `web`, `nginx`, e a camada de coleta de observabilidade (Alloy no lugar do otelcol, cAdvisor, node-exporter) — tudo via `docker-compose.prod.yml` único.
 - `E2.1.Micro` (1GB): `prometheus`, `loki`, `tempo`, `grafana`, `alertmanager` via `docker-compose.observability.yml`. Sem nenhuma porta pública — só alcançável pela `A1.Flex` via IP privado.
 
+**Orçamento de memória — `A1.Flex`** (limites explícitos em todo serviço, nenhum container fica livre pra consumir o resto da VM; valores herdados de `docs/infra-monitoring-producao.md`, calibrados originalmente pra EC2 2GB e mantidos por disciplina mesmo com 12GB disponíveis):
+
+| Serviço | Limite | Observação |
+|---|---|---|
+| `postgresql` | 512MB | — |
+| `redis` | 128MB | — |
+| `minio` | 256MB | — |
+| `api` | 512MB | — |
+| `web` | 512MB | `NODE_OPTIONS="--max-old-space-size=384"` — trava o heap do V8 numa fração do limite, deixando ~128MB pra memória não-heap. Necessário porque há relatos não resolvidos de memory leak gradual em produção Docker/Kubernetes em versões próximas da 16.2.9 ([vercel/next.js#88603](https://github.com/vercel/next.js/discussions/88603)) — sem esse teto, o processo cresceria até o container ser morto por OOM. Mitigação adicional: **restart agendado noturno** (`docker compose restart web` via cron, mesmo mecanismo do backup) pra resetar qualquer crescimento lento antes de ameaçar o limite |
+| `nginx` | 64MB | — |
+| `cadvisor` | 128MB | métricas por container |
+| `node-exporter` | 64MB | métricas de host |
+| `alloy` | 128MB | substitui otelcol/promtail — unifica scrape de métricas + envio de logs |
+| **Total** | **~2,3GB** | de 12GB disponíveis na VM — folga grande pra crescimento |
+
+**Observabilidade de host + container**: `cAdvisor` expõe métrica por container (CPU, RAM, rede, disco, lendo do socket do Docker) e `node-exporter` expõe métrica de host (CPU total, RAM disponível, disco) — ambos só na `A1.Flex`. `Alloy` faz scrape dos dois e `remote_write`/`push` pro Prometheus/Loki na `E2.1.Micro` via IP privado. Reaproveita os 2 dashboards Grafana já desenhados em `docs/infra-monitoring-producao.md` ("Infra Overview" — CPU/RAM/disco do host + por container; "Container Detail" — dropdown por serviço com throttling de CPU, working set vs. cache, restart count) — só adaptar o filtro de `container_label_com_docker_compose_project` pro nome do novo `docker-compose.prod.yml` (manter `oikos-prod` por continuidade).
+
 **Exposição pública**: só a `A1.Flex` recebe tráfego externo, só na porta 443. `nginx` roteia por hostname:
 - `api.oikos.company` → `api:3333`
 - `oikos.company` → `web:3000`
