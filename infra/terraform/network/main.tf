@@ -94,12 +94,15 @@ resource "oci_core_security_list" "this" {
 }
 
 # Subnet publica - so a A1.Flex, unica com IP publico e porta 443 exposta.
+# dns_label mantido igual ao original ("oikossub") de proposito - e um campo
+# imutavel (ForceNew) na OCI, mudar o valor destruiria/recriaria a subnet
+# mesmo com o "moved" abaixo preservando o endereco do recurso.
 resource "oci_core_subnet" "public" {
   compartment_id             = var.compartment_ocid
   vcn_id                     = oci_core_vcn.this.id
   cidr_block                 = "10.0.1.0/24"
   display_name               = "oikos-subnet-public"
-  dns_label                  = "oikospub"
+  dns_label                  = "oikossub"
   route_table_id             = oci_core_route_table.public.id
   security_list_ids          = [oci_core_security_list.this.id]
   prohibit_public_ip_on_vnic = false
