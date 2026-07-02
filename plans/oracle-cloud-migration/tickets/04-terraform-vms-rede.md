@@ -1,6 +1,6 @@
 # T4 — `devops`: Terraform — VMs + Rede
 
-**Status**: Bloqueada — aguardando o usuário cadastrar credenciais (ver Guia abaixo). Já existe um par de chaves SSH em `/media/ccrs/development/ccrs/oracle/ssh-key-2026-06-30.key(.pub)` — serve pro usuário `deploy` da VM, mas **não** substitui as credenciais de API abaixo.
+**Status**: Em andamento — credenciais cadastradas, workspace conectado via VCS, código Terraform escrito e validado (`fmt`/`init`/`validate`). Falta rodar o primeiro `plan`/`apply` e testar SSH nas VMs. Processo completo de como as credenciais foram obtidas está documentado em [`docs/terraform-cloud-credentials-setup.md`](../../../docs/terraform-cloud-credentials-setup.md).
 **Repositório**: `oikos-circular-environment/devops`
 
 ## Escopo
@@ -23,17 +23,17 @@ Nenhuma.
 
 ## Checklist
 
-- [ ] `infra/terraform/backend.tf` — workspace remoto no Terraform Cloud, VCS-driven (conectado direto no repo `devops`)
-- [ ] Credenciais OCI cadastradas como workspace variables sensitive no Terraform Cloud (usuário cadastra)
-- [ ] `infra/terraform/network/` — VCN + subnet privada compartilhada pelas 2 VMs
-- [ ] `infra/terraform/network/` — internet gateway + route table
-- [ ] `infra/terraform/network/` — Security List: porta 443 liberada só pros ranges de IP do Cloudflare
-- [ ] `infra/terraform/network/` — nenhuma porta pública liberada pra subnet/VM da observabilidade
-- [ ] `infra/terraform/compute/` — `oci_core_instance` da VM `A1.Flex` (2 OCPU / 12GB), boot volume ~150GB
-- [ ] `infra/terraform/compute/` — `oci_core_instance` da VM `E2.1.Micro` (1GB), boot volume ~50GB
-- [ ] cloud-init (ambas as VMs): instala Docker, cria usuário `deploy` (grupo `docker`, chave SSH própria), hardening básico de SSH
-- [ ] cloud-init (só `E2.1.Micro`): cria e ativa swap file de 8-10GB
-- [ ] Confirmar que cloud-init **não** inclui secrets nem compose files (isso é do deploy, T9)
+- [x] `infra/terraform/backend.tf` — workspace remoto no Terraform Cloud, VCS-driven (conectado direto no repo `devops`)
+- [x] Credenciais OCI cadastradas como workspace variables sensitive no Terraform Cloud (usuário cadastra)
+- [x] `infra/terraform/network/` — VCN + subnet privada compartilhada pelas 2 VMs
+- [x] `infra/terraform/network/` — internet gateway + route table
+- [x] `infra/terraform/network/` — Security List: porta 443 liberada só pros ranges de IP do Cloudflare
+- [x] `infra/terraform/network/` — nenhuma porta pública liberada pra subnet/VM da observabilidade
+- [x] `infra/terraform/compute/` — `oci_core_instance` da VM `A1.Flex` (2 OCPU / 12GB), boot volume ~150GB
+- [x] `infra/terraform/compute/` — `oci_core_instance` da VM `E2.1.Micro` (1GB), boot volume ~50GB
+- [x] cloud-init (ambas as VMs): instala Docker, cria usuário `deploy` (grupo `docker`, chave SSH própria), hardening básico de SSH
+- [x] cloud-init (só `E2.1.Micro`): cria e ativa swap file de 8-10GB
+- [x] Confirmar que cloud-init **não** inclui secrets nem compose files (isso é do deploy, T9)
 - [ ] `terraform plan` revisado e `apply` rodado com sucesso
 - [ ] IPs públicos das duas VMs anotados (necessários pra T5)
 - [ ] SSH manual de teste com o usuário `deploy` funcionando nas duas VMs

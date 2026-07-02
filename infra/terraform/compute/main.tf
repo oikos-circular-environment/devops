@@ -9,10 +9,13 @@ locals {
 
 # Shape filtra a arquitetura automaticamente (A1.Flex = ARM, E2.1.Micro = x86),
 # entao as duas data sources abaixo ja retornam so imagens compativeis.
+# Variante "Minimal" (menos pacotes pre-instalados, equivalente a uma imagem
+# Docker slim) em vez da imagem padrao - reduz baseline de RAM/disco, o que
+# importa principalmente na E2.1.Micro (1GB, orcamento de memoria apertado).
 data "oci_core_images" "app" {
   compartment_id           = var.compartment_ocid
   operating_system         = "Canonical Ubuntu"
-  operating_system_version = "24.04"
+  operating_system_version = "24.04 Minimal aarch64"
   shape                    = "VM.Standard.A1.Flex"
   sort_by                  = "TIMECREATED"
   sort_order               = "DESC"
@@ -21,7 +24,7 @@ data "oci_core_images" "app" {
 data "oci_core_images" "observability" {
   compartment_id           = var.compartment_ocid
   operating_system         = "Canonical Ubuntu"
-  operating_system_version = "24.04"
+  operating_system_version = "24.04 Minimal"
   shape                    = "VM.Standard.E2.1.Micro"
   sort_by                  = "TIMECREATED"
   sort_order               = "DESC"

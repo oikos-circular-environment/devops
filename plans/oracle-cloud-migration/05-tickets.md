@@ -38,7 +38,7 @@ T2 (mobile) é independente de tudo — pode rodar em paralelo com qualquer outr
 | [T1](./tickets/01-api-ci-semver.md) | `api` — CI + Versionamento | `ci.yml` escrito, prod artifacts removidos, falta PAT/secret + validar | — |
 | [T2](./tickets/02-mobile-ci-semver.md) | `mobile` — CI + Versionamento | `ci.yml` escrito, falta validar | — |
 | [T3](./tickets/03-web-ci-semver.md) | `web` — CI + Versionamento | `ci.yml` escrito, falta PAT/secret (test runner adiado) | — |
-| [T4](./tickets/04-terraform-vms-rede.md) | `devops` — Terraform: VMs + rede | Bloqueada — aguardando credenciais OCI/Cloudflare/Terraform Cloud (guia na ticket) | — |
+| [T4](./tickets/04-terraform-vms-rede.md) | `devops` — Terraform: VMs + rede | Em andamento — credenciais e workspace prontos, `network`/`compute` escritos e validados, falta `apply` + teste SSH | — |
 | [T5](./tickets/05-terraform-dns-cloudflare.md) | `devops` — Terraform: DNS + Cloudflare Access | Não iniciado | T4 |
 | [T6](./tickets/06-stack-producao.md) | `devops` — Stack de produção | Escrito e validado localmente, falta testar na VM real | T4 |
 | [T7](./tickets/07-observabilidade.md) | `devops` — Observabilidade re-tunada | Não iniciado | T4 |
