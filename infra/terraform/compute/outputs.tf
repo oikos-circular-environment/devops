@@ -12,3 +12,8 @@ output "observability_private_ip" {
   description = "IP privado da VM E2.1.Micro (sem IP publico)"
   value       = oci_core_instance.observability.private_ip
 }
+
+output "app_instance_id" {
+  description = "OCID da instancia A1.Flex - usado pelo modulo storage (T8) pra restringir o instance principal do backup a essa VM"
+  value       = oci_core_instance.app.id
+}

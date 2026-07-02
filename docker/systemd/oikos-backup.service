@@ -1,0 +1,15 @@
+[Unit]
+Description=Backup diario do Postgres e Redis pro Oracle Object Storage (T8)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/oikos
+# Pre-requisito (uma vez so, manual, nao automatizado aqui de proposito -
+# instalar via script generico de terceiros dentro de um systemd unit que
+# roda todo dia sem supervisao e fragil demais pra esse caso):
+#   curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh | bash -s -- --accept-all-defaults
+# Ver ticket T8 (08-backup-automatizado.md) pro passo a passo completo.
+ExecStart=/opt/oikos/scripts/backup-postgres.sh
+ExecStart=/opt/oikos/scripts/backup-redis.sh
