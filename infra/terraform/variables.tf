@@ -30,13 +30,18 @@ variable "region" {
 
 variable "cloudflare_api_token" {
   type        = string
-  description = "Account API Token da Cloudflare. Usado aqui so pra ler os IP ranges oficiais na Security List; registros DNS e zona ficam a cargo da ticket T5"
+  description = "Account API Token da Cloudflare. Usado na Security List (T4, ler IP ranges) e no modulo dns (T5, registros/Access/certificado)"
   sensitive   = true
 }
 
 variable "cloudflare_account_id" {
   type        = string
-  description = "Account ID da Cloudflare. Nao usado ainda pelo T4 - declarado so pra silenciar o warning de variavel nao declarada, sera consumido a partir da ticket T5 (DNS)"
+  description = "Account ID da Cloudflare. Usado pelo modulo dns (T5) pra localizar a zona e criar as aplicacoes de Access"
   sensitive   = true
-  default     = null
+}
+
+variable "domain_name" {
+  type        = string
+  description = "Dominio raiz gerenciado no Cloudflare"
+  default     = "oikos.company"
 }
