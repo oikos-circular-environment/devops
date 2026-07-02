@@ -38,26 +38,15 @@ resource "oci_core_security_list" "this" {
     protocol    = "all"
   }
 
+  # So IPv4 - a VCN nao tem IPv6 habilitado e as instancias so recebem IP
+  # publico IPv4, entao regras IPv6 aqui seriam config morta (OCI rejeita a
+  # criacao da Security List se a VCN nao suportar o CIDR IPv6 referenciado).
   dynamic "ingress_security_rules" {
     for_each = data.cloudflare_ip_ranges.this.ipv4_cidrs
     content {
       protocol    = "6" # TCP
       source      = ingress_security_rules.value
       description = "HTTPS via Cloudflare (IPv4)"
-
-      tcp_options {
-        min = 443
-        max = 443
-      }
-    }
-  }
-
-  dynamic "ingress_security_rules" {
-    for_each = data.cloudflare_ip_ranges.this.ipv6_cidrs
-    content {
-      protocol    = "6"
-      source      = ingress_security_rules.value
-      description = "HTTPS via Cloudflare (IPv6)"
 
       tcp_options {
         min = 443
