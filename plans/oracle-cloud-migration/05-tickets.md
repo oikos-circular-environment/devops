@@ -44,7 +44,7 @@ T2 (mobile) é independente de tudo — pode rodar em paralelo com qualquer outr
 | [T7](./tickets/07-observabilidade.md) | `devops` — Observabilidade re-tunada | Não iniciado | T4 |
 | [T8](./tickets/08-backup-automatizado.md) | `devops` — Backup automatizado | Não iniciado | T4 |
 | [T9](./tickets/09-deploy-pipeline.md) | `devops` — Deploy pipeline | Não iniciado | T1, T3, T6, T4 |
-| [T10](./tickets/10-migracao-dados-cutover.md) | `devops` — Migração de dados + cutover | Não iniciado | T9, T5, T8 |
+| [T10](./tickets/10-migracao-dados-cutover.md) | `devops` — Migração de dados + cutover | Script e checklist de cutover escritos, execução real deferida pra revisão final | T9, T5, T8 |
 
 ## Refinamento
 
