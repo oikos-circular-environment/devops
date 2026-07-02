@@ -91,6 +91,53 @@ resource "oci_core_security_list" "this" {
       max = 22
     }
   }
+
+  # Portas de observabilidade (T7) - so a partir da subnet publica (onde
+  # roda o Alloy, na A1.Flex), nunca da internet. Sem isso, a OCI bloqueia
+  # esse trafego mesmo sendo intra-VCN (achado na T4/T7).
+  ingress_security_rules {
+    protocol    = "6"
+    source      = "10.0.1.0/24"
+    description = "Prometheus remote_write (Alloy -> E2.1.Micro)"
+
+    tcp_options {
+      min = 9090
+      max = 9090
+    }
+  }
+
+  ingress_security_rules {
+    protocol    = "6"
+    source      = "10.0.1.0/24"
+    description = "Loki push (Alloy -> E2.1.Micro)"
+
+    tcp_options {
+      min = 3100
+      max = 3100
+    }
+  }
+
+  ingress_security_rules {
+    protocol    = "6"
+    source      = "10.0.1.0/24"
+    description = "Tempo OTLP gRPC (Alloy -> E2.1.Micro)"
+
+    tcp_options {
+      min = 4317
+      max = 4317
+    }
+  }
+
+  ingress_security_rules {
+    protocol    = "6"
+    source      = "10.0.1.0/24"
+    description = "Grafana UI (nginx da A1.Flex -> E2.1.Micro, atras de Cloudflare Access)"
+
+    tcp_options {
+      min = 3000
+      max = 3000
+    }
+  }
 }
 
 # Subnet publica - so a A1.Flex, unica com IP publico e porta 443 exposta.

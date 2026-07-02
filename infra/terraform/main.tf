@@ -26,3 +26,11 @@ module "dns" {
   domain_name           = var.domain_name
   app_public_ip         = module.compute.app_public_ip
 }
+
+module "storage" {
+  source = "./storage"
+
+  compartment_ocid = local.compartment_ocid
+  tenancy_ocid     = var.tenancy_ocid
+  app_instance_id  = module.compute.app_instance_id
+}

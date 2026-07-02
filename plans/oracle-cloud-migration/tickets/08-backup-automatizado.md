@@ -1,6 +1,6 @@
 # T8 — `devops`: Backup Automatizado
 
-**Status**: Não iniciado
+**Status**: Escrito e validado localmente, na branch `feature/t8-backup-automatizado`. Falta rodar de verdade na VM e testar o restore de ponta a ponta (deferido pra revisão final, ticket 99).
 **Repositório**: `oikos-circular-environment/devops`
 
 ## Escopo
@@ -23,16 +23,17 @@ T4 (VM precisa existir; bucket pode ser criado em paralelo já que é um recurso
 
 ## Checklist
 
-- [ ] `infra/terraform/storage/` — bucket `oikos-backups`
-- [ ] Lifecycle Policy no bucket — prefixo `postgres/`, delete após 7 dias
-- [ ] Lifecycle Policy no bucket — prefixo `redis/`, delete após 7 dias
-- [ ] `scripts/backup-postgres.sh` — `pg_dump` formato custom comprimido, nome `postgres/oikos-postgres-{YYYYMMDD-HHmmss}.dump.gz`
-- [ ] `scripts/backup-redis.sh` — snapshot RDB, nome `redis/oikos-redis-{YYYYMMDD-HHmmss}.rdb.gz`
-- [ ] Confirmar que `redis` no `docker-compose.prod.yml` (T6) tem persistência AOF/RDB habilitada — pré-requisito pro backup fazer sentido
-- [ ] Cron/systemd timer diário rodando os dois scripts na `A1.Flex`
-- [ ] Credenciais de acesso ao Object Storage (chave da API OCI) disponíveis pro script, sem hardcode — cadastradas como secret/variável de ambiente
-- [ ] Runbook de restore documentado (passo a passo pra restaurar Postgres e Redis a partir de um dump do bucket)
-- [ ] Restore testado pelo menos uma vez de ponta a ponta (não só geração do backup — a restauração de verdade)
+- [x] `infra/terraform/storage/` — bucket `oikos-backups`
+- [x] Lifecycle Policy no bucket — prefixo `postgres/`, delete após 7 dias
+- [x] Lifecycle Policy no bucket — prefixo `redis/`, delete após 7 dias
+- [x] `scripts/backup-postgres.sh` — `pg_dump` formato custom comprimido, nome `postgres/oikos-postgres-{YYYYMMDD-HHmmss}.dump.gz`
+- [x] `scripts/backup-redis.sh` — snapshot RDB (via `SAVE` síncrono, não `BGSAVE`, pra garantir arquivo completo antes de copiar), nome `redis/oikos-redis-{YYYYMMDD-HHmmss}.rdb.gz`
+- [x] Confirmar que `redis` no `docker-compose.prod.yml` (T6) tem persistência AOF/RDB habilitada — já feito (`REDIS_AOF_ENABLED: "yes"`)
+- [x] `docker/systemd/oikos-backup.{service,timer}` — timer diário (04:00) rodando os dois scripts na `A1.Flex`
+- [x] Credenciais de acesso ao Object Storage **sem nenhuma chave estática** — usa **Instance Principal** da OCI (`oci_identity_dynamic_group` + `oci_identity_policy`, escopados só pra VM `A1.Flex` e só pro bucket `oikos-backups`), scripts rodam com `--auth instance_principal`. Mais forte que "secret/variável de ambiente" pedido originalmente — elimina qualquer credencial embutida na VM
+- [x] Runbook de restore documentado em [`docs/backup-restore-runbook.md`](../../../docs/backup-restore-runbook.md)
+- [ ] Restore testado pelo menos uma vez de ponta a ponta — deferido pra revisão final (ticket 99)
+- [ ] Instalar a OCI CLI na `A1.Flex` (pré-requisito manual, uma vez só — decisão consciente de não automatizar dentro do systemd unit que roda todo dia sem supervisão): `curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh | bash -s -- --accept-all-defaults`
 
 ## Definição de Pronto
 
