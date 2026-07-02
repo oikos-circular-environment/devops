@@ -6,7 +6,7 @@ Ordem exata das operações pro corte final, da máquina de desenvolvimento atua
 
 ## Pré-requisitos (antes do dia do corte)
 
-- [ ] **T5 pronta**: DNS resolvendo `api.oikos.company` e `oikos.company` pra VM Oracle, Cloudflare Access funcionando em `grafana`/`minio` — mas **ainda sem tráfego real** (túnel antigo continua sendo a fonte de verdade até o corte)
+- [ ] **T5 pronta**: DNS resolvendo `api.oikos.company` e `oikos.company` pra VM Oracle, login próprio funcionando em `grafana`/`minio` — mas **ainda sem tráfego real** (túnel antigo continua sendo a fonte de verdade até o corte)
 - [ ] **T8 rodando há pelo menos 24h**: confirmar objetos recentes em `postgres/` e `redis/` no bucket `oikos-backups` — rede de segurança antes de qualquer operação destrutiva
 - [ ] **T9 validada**: `workflow_dispatch` manual do `deploy.yml` já rodou com sucesso pelo menos uma vez, stack completa saudável na VM
 - [ ] Testar `scripts/migrate-data.sh minio` uma vez **antes** do dia do corte (mirror incremental, não destrutivo) — aquece o cache e valida que o túnel SSH + `mc` funcionam, sem pressa do corte real

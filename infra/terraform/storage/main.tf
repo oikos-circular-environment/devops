@@ -65,3 +65,15 @@ resource "oci_identity_policy" "backup" {
     "Allow dynamic-group ${oci_identity_dynamic_group.backup.name} to manage objects in compartment id ${var.compartment_ocid} where target.bucket.name = 'oikos-backups'"
   ]
 }
+
+# O proprio servico de Object Storage (nao a VM) precisa de permissao explicita
+# pra executar as acoes de delete automaticas do lifecycle policy acima -
+# sem essa policy o apply falha com "InsufficientServicePermissions".
+resource "oci_identity_policy" "objectstorage_lifecycle" {
+  compartment_id = var.compartment_ocid
+  name           = "oikos-objectstorage-lifecycle-policy"
+  description    = "Permite o servico Object Storage executar as regras de object lifecycle (expiracao) no bucket oikos-backups"
+  statements = [
+    "Allow service objectstorage-sa-vinhedo-1 to manage object-family in compartment id ${var.compartment_ocid} where target.bucket.name = 'oikos-backups'"
+  ]
+}

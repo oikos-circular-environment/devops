@@ -54,4 +54,4 @@ T4 (precisa das duas VMs existindo e se comunicando por IP privado).
 
 ## Definição de Pronto
 
-Abrir `grafana.oikos.company` (via Cloudflare Access) e ver, nos dois dashboards, dados reais de CPU/RAM/disco tanto do host `A1.Flex` quanto de cada container individualmente (api, web, postgresql, redis, minio, nginx).
+Abrir `grafana.oikos.company` (login com usuário/senha do Grafana) e ver, nos dois dashboards, dados reais de CPU/RAM/disco tanto do host `A1.Flex` quanto de cada container individualmente (api, web, postgresql, redis, minio, nginx).

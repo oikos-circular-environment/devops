@@ -15,18 +15,18 @@ C4Context
 
     System(oikos, "Oikos", "API + Web + dados de produção")
 
-    System_Ext(cloudflare, "Cloudflare", "DNS proxied, TLS (Origin CA), Access (Zero Trust)")
+    System_Ext(cloudflare, "Cloudflare", "DNS proxied, TLS (Origin CA)")
     System_Ext(github, "GitHub", "Repositórios, Actions (CI/CD), Packages (GHCR)")
     System_Ext(terraformCloud, "Terraform Cloud", "State remoto + execução de plan/apply")
     System_Ext(oracleCloud, "Oracle Cloud", "Always Free — VMs, rede, Object Storage")
 
     Rel(mobileUser, cloudflare, "Acessa", "HTTPS, api.oikos.company")
-    Rel(admin, cloudflare, "Acessa dashboards/console", "HTTPS via Cloudflare Access")
+    Rel(admin, cloudflare, "Acessa dashboards/console", "HTTPS, login proprio de cada ferramenta")
     Rel(cloudflare, oikos, "Encaminha tráfego", "DNS proxied → nginx")
     Rel(admin, github, "Desenvolve, aprova merges")
     Rel(github, oikos, "Builda e implanta nova versão", "repository_dispatch → build → SSH")
     Rel(terraformCloud, oracleCloud, "Provisiona/reconcilia infraestrutura")
-    Rel(terraformCloud, cloudflare, "Provisiona DNS/Access")
+    Rel(terraformCloud, cloudflare, "Provisiona DNS")
     Rel(oikos, oracleCloud, "Roda em", "VMs Always Free")
 ```
 
@@ -40,7 +40,7 @@ C4Container
 
     Person(mobileUser, "Usuário Mobile")
     Person(admin, "Desenvolvedor/Admin")
-    System_Ext(cloudflare, "Cloudflare", "DNS, TLS, Access")
+    System_Ext(cloudflare, "Cloudflare", "DNS, TLS")
     System_Ext(githubActions, "GitHub Actions", "CI/CD, push pro GHCR")
 
     System_Boundary(oikos, "Oikos") {
@@ -60,7 +60,7 @@ C4Container
     }
 
     Rel(mobileUser, nginx, "HTTPS", "api.oikos.company")
-    Rel(admin, nginx, "HTTPS via Cloudflare Access", "grafana.oikos.company / minio.oikos.company")
+    Rel(admin, nginx, "HTTPS, login proprio da ferramenta", "grafana.oikos.company / minio.oikos.company")
     Rel(nginx, api, "Encaminha")
     Rel(nginx, web, "Encaminha")
     Rel(nginx, grafana, "Encaminha")
@@ -91,8 +91,8 @@ C4Deployment
         Container(mobileApp, "App Mobile / Browser")
     }
 
-    Deployment_Node(cf, "Cloudflare Edge", "DNS proxied + Access") {
-        Container(cfProxy, "TLS termination + Zero Trust")
+    Deployment_Node(cf, "Cloudflare Edge", "DNS proxied") {
+        Container(cfProxy, "TLS termination")
     }
 
     Deployment_Node(oracle, "Oracle Cloud — Always Free") {
@@ -136,6 +136,6 @@ C4Deployment
     Rel(deployJob, ghcr, "Push imagem")
     Rel(deployJob, nginxD, "SSH deploy", "docker compose pull/up, targeted por serviço")
     Rel(tfState, nginxD, "Provisiona/reconcilia infraestrutura", "VMs, rede, storage — OCI provider")
-    Rel(tfState, cfProxy, "Provisiona DNS/Access", "Cloudflare provider")
+    Rel(tfState, cfProxy, "Provisiona DNS", "Cloudflare provider")
     Rel(apiD, backupBucket, "Backup diário", "pg_dump/redis via cron")
 ```

@@ -84,8 +84,10 @@ Diferente da OCI, o token da Cloudflare **não dá pra gerar via CLI/API do zero
 
 - **Account API Tokens** (não "My Profile → API Tokens" — Cloudflare recomenda token de conta, não atrelado a usuário, pra automação/CI)
 - Custom token com duas policies:
-  - **Account → Entire Account → Access: Apps and Policies → Edit** (aparece na UI só como "Access", dentro da categoria "Cloudflare One / Zero Trust" — é o nome curto do mesmo grupo de permissão)
   - **Zone → (domínio do projeto) → DNS → Edit** (não confundir com "Zone DNS Settings", que é outra permissão — essa aqui é a que permite criar/editar registros, incluindo subdomínios, já que um subdomínio é só um registro dentro da mesma zona)
+  - **Zone → (domínio do projeto) → SSL and Certificates → Edit** (necessária pro recurso `cloudflare_origin_ca_certificate` — sem essa permissão o `apply` falha com 401 "User is not authorized to perform this action")
+
+Cloudflare Access/Zero Trust foi avaliado e descartado do escopo (T5, decisão de 2026-07-02) — não precisa da policy `Access: Apps and Policies`.
 
 ## 5. Terraform Cloud — organização e workspace
 

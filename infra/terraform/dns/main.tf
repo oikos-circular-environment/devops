@@ -38,7 +38,7 @@ resource "cloudflare_dns_record" "grafana" {
   content = var.app_public_ip
   ttl     = 1
   proxied = true
-  comment = "grafana - atras de Cloudflare Access, ver aplicacao abaixo"
+  comment = "grafana - protegido pelo login proprio do Grafana (usuario/senha forte)"
 }
 
 resource "cloudflare_dns_record" "minio" {
@@ -48,43 +48,7 @@ resource "cloudflare_dns_record" "minio" {
   content = var.app_public_ip
   ttl     = 1
   proxied = true
-  comment = "console do minio - atras de Cloudflare Access, ver aplicacao abaixo"
-}
-
-# --- Cloudflare Access - so pra grafana e minio (api/oikos.company ficam publicos, sem Access) ---
-
-resource "cloudflare_zero_trust_access_application" "grafana" {
-  account_id       = var.cloudflare_account_id
-  name             = "Grafana"
-  domain           = "${cloudflare_dns_record.grafana.name}.${var.domain_name}"
-  type             = "self_hosted"
-  session_duration = "24h"
-
-  policies = [
-    {
-      name       = "Allow developer"
-      decision   = "allow"
-      precedence = 1
-      include    = [{ email = { email = var.developer_email } }]
-    }
-  ]
-}
-
-resource "cloudflare_zero_trust_access_application" "minio" {
-  account_id       = var.cloudflare_account_id
-  name             = "MinIO Console"
-  domain           = "${cloudflare_dns_record.minio.name}.${var.domain_name}"
-  type             = "self_hosted"
-  session_duration = "24h"
-
-  policies = [
-    {
-      name       = "Allow developer"
-      decision   = "allow"
-      precedence = 1
-      include    = [{ email = { email = var.developer_email } }]
-    }
-  ]
+  comment = "console do minio - protegido pelo login proprio do MinIO (usuario/senha forte)"
 }
 
 # --- Certificado Cloudflare Origin CA (usado pelo nginx na T6) ---
