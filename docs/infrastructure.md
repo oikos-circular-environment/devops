@@ -13,15 +13,18 @@ Fonte: [documentação oficial](https://docs.oracle.com/pt-br/iaas/Content/FreeT
 | Block Storage (boot + block volumes) | **200GB combinados, compartilhados entre todas as instâncias** — não é exclusivo do `A1.Flex` | `A1.Flex` ~150GB / `E2.1.Micro` ~50GB (inclui swap file de 8-10GB). Boot volume mínimo por instância: 47GB |
 | Object Storage (Standard+IA+Archive) | 20GB combinados, **pool separado** do Block Storage; 50.000 requisições/mês | Bucket `oikos-backups` (Postgres + Redis, retenção 7 dias) |
 | Egress (saída) | 10TB/mês | Folgado pro volume atual |
-| VCNs | 2 por tenancy | 1 VCN compartilhada pelas 2 VMs, subnet privada |
+| VCNs | 2 por tenancy | 1 VCN compartilhada pelas 2 VMs, 2 subnets (pública + privada) |
+| NAT Gateway | Sem limite Always Free específico, sem cobrança por hora na OCI (diferente da AWS) | 1 NAT Gateway, só pra saída de internet da subnet privada (`E2.1.Micro`) |
 
 **Ambas as shapes (`A1.Flex` + `E2.1.Micro`) podem coexistir na mesma tenancy/região** — confirmado na documentação oficial.
+
+**Achado durante o `apply` da T4**: uma única subnet compartilhada com só Internet Gateway não funciona pra uma instância sem IP público — o Internet Gateway só roteia tráfego de/para instâncias com IP público, então a `E2.1.Micro` (sem IP público, por design) não tinha rota nenhuma pra internet, e o `cloud-init` falhava ao instalar o Docker. Correção: a VCN passou a ter 2 subnets (pública com rota pro Internet Gateway, privada com rota pro NAT Gateway), cada uma com sua própria route table.
 
 ## Terraform Cloud (state remoto)
 
 - **Free tier "enhanced"** (vigente desde 31/03/2026, substituiu o free plan legado): até **500 recursos gerenciados grátis**, usuários ilimitados, 1 run concorrente, SSO incluso.
 - Acima de 500 recursos: cobrança por recurso/mês (Essentials $0.10 / Standard $0.47 / Premium $0.99).
-- **Uso estimado deste projeto**: ~12-16 recursos (2 VMs, VCN, subnet, security lists, internet gateway, route table, bucket de backup, ~4 registros DNS Cloudflare) — muito abaixo do limite grátis.
+- **Uso estimado deste projeto**: ~15-19 recursos (2 VMs, VCN, 2 subnets, security list, internet gateway, NAT gateway, 2 route tables, bucket de backup, ~4 registros DNS Cloudflare) — muito abaixo do limite grátis.
 - **Custo atual: $0/mês.**
 - Escolhido em vez de backend `s3` num bucket OCI porque o backend `s3` do Terraform depende de lock via DynamoDB pra evitar `apply` concorrente corromper o state — a OCI não tem equivalente nativo. Terraform Cloud resolve isso nativamente (fila de runs).
 

@@ -14,6 +14,7 @@ module "network" {
 module "compute" {
   source = "./compute"
 
-  compartment_ocid = local.compartment_ocid
-  subnet_id        = module.network.subnet_id
+  compartment_ocid  = local.compartment_ocid
+  subnet_id_public  = module.network.subnet_id_public
+  subnet_id_private = module.network.subnet_id_private
 }
