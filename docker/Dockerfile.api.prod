@@ -1,0 +1,54 @@
+# Migrado de oikos/api/Dockerfile.prod (T1/T6 — devops passa a ser dono de todo Dockerfile de produção).
+# Build context esperado: raiz do repo oikos/api (checkout da tag/SHA recebida via repository_dispatch).
+
+# ---- Stage 1: Builder ----
+FROM node:22-alpine AS builder
+WORKDIR /app
+
+# O lockfile foi gerado com npm v11; garantir versão consistente no container
+RUN npm install -g npm@11
+
+COPY package*.json ./
+COPY prisma/*.prisma ./prisma/
+COPY prisma/migrations ./prisma/migrations
+COPY prisma.config.ts ./
+RUN npm ci --ignore-scripts
+
+COPY tsconfig.json ./
+COPY src/ ./src/
+RUN npx prisma generate && npm run build
+
+# ---- Stage 2: Production ----
+FROM node:22-alpine AS production
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+RUN npm install -g npm@11
+
+COPY package*.json ./
+RUN npm ci --omit=dev --ignore-scripts
+
+# prisma CLI é devDep, mas necessária pro passo de `prisma migrate deploy` do deploy.yml
+# (roda como comando separado antes do container subir — ver docker-compose.prod.yml / T9)
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
+
+# Aplicação compilada
+COPY --from=builder /app/dist ./dist
+
+# Schema, migrations e config do Prisma para `prisma migrate deploy`
+COPY --from=builder /app/prisma/schema.prisma ./prisma/schema.prisma
+COPY --from=builder /app/prisma/enums.prisma ./prisma/enums.prisma
+COPY --from=builder /app/prisma/migrations ./prisma/migrations
+COPY prisma.config.ts ./
+
+# Pino (logger.ts) escreve logs/server.log e logs/queries.log sempre (pino-roll, mkdir:true) —
+# diretório montado como volume no compose pra o Alloy conseguir tailar (ver observability/alloy/alloy-prod.alloy)
+RUN mkdir -p logs
+
+EXPOSE 3333
+
+# Migration NÃO roda aqui — é um passo separado do deploy.yml (docker compose run --rm api
+# npx prisma migrate deploy), pra não derrubar o container antigo antes de validar a migration.
+CMD ["node", "--import", "./dist/lib/otel.js", "dist/server.js"]
