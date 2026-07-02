@@ -1,0 +1,202 @@
+{
+  "title": "Oikos — Infra Overview",
+  "uid": "oikos-infra-overview",
+  "description": "CPU/RAM/disco do host A1.Flex + por container, filtrado por container_label_com_docker_compose_project=\"oikos-prod\" (T7)",
+  "tags": ["oikos", "infra"],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "version": 1,
+  "time": { "from": "now-1h", "to": "now" },
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Host CPU %",
+      "type": "gauge",
+      "gridPos": { "x": 0, "y": 0, "w": 8, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\"}[2m])) * 100)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "steps": [
+              { "value": 0, "color": "green" },
+              { "value": 70, "color": "yellow" },
+              { "value": 90, "color": "red" }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Host RAM %",
+      "type": "gauge",
+      "gridPos": { "x": 8, "y": 0, "w": 8, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "steps": [
+              { "value": 0, "color": "green" },
+              { "value": 70, "color": "yellow" },
+              { "value": 90, "color": "red" }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Host Disco %",
+      "type": "gauge",
+      "gridPos": { "x": 16, "y": 0, "w": 8, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "(1 - (node_filesystem_avail_bytes{mountpoint=\"/\"} / node_filesystem_size_bytes{mountpoint=\"/\"})) * 100",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "steps": [
+              { "value": 0, "color": "green" },
+              { "value": 70, "color": "yellow" },
+              { "value": 90, "color": "red" }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "CPU por container",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 6, "w": 24, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(container_cpu_usage_seconds_total{container_label_com_docker_compose_project=\"oikos-prod\"}[2m])) by (container_label_com_docker_compose_service) * 100",
+          "legendFormat": "{{container_label_com_docker_compose_service}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": { "lineWidth": 2 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 5,
+      "title": "RAM por container (bytes)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 14, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(container_memory_usage_bytes{container_label_com_docker_compose_project=\"oikos-prod\"}) by (container_label_com_docker_compose_service)",
+          "legendFormat": "{{container_label_com_docker_compose_service}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": { "lineWidth": 2 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 6,
+      "title": "RAM por container (% do limite)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 14, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(container_memory_usage_bytes{container_label_com_docker_compose_project=\"oikos-prod\"}) by (container_label_com_docker_compose_service) / sum(container_spec_memory_limit_bytes{container_label_com_docker_compose_project=\"oikos-prod\"}) by (container_label_com_docker_compose_service) * 100",
+          "legendFormat": "{{container_label_com_docker_compose_service}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "max": 100,
+          "custom": { "lineWidth": 2 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 7,
+      "title": "Rede por container - RX",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 22, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(container_network_receive_bytes_total{container_label_com_docker_compose_project=\"oikos-prod\"}[2m])) by (container_label_com_docker_compose_service)",
+          "legendFormat": "{{container_label_com_docker_compose_service}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": { "lineWidth": 2 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 8,
+      "title": "Rede por container - TX",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 22, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(container_network_transmit_bytes_total{container_label_com_docker_compose_project=\"oikos-prod\"}[2m])) by (container_label_com_docker_compose_service)",
+          "legendFormat": "{{container_label_com_docker_compose_service}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": { "lineWidth": 2 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    }
+  ]
+}
