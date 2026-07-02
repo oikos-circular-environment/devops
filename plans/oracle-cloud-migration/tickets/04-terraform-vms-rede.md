@@ -1,6 +1,6 @@
 # T4 — `devops`: Terraform — VMs + Rede
 
-**Status**: Não iniciado
+**Status**: Bloqueada — aguardando o usuário cadastrar credenciais (ver Guia abaixo). Já existe um par de chaves SSH em `/media/ccrs/development/ccrs/oracle/ssh-key-2026-06-30.key(.pub)` — serve pro usuário `deploy` da VM, mas **não** substitui as credenciais de API abaixo.
 **Repositório**: `oikos-circular-environment/devops`
 
 ## Escopo
@@ -41,3 +41,27 @@ Nenhuma.
 ## Definição de Pronto
 
 As duas VMs existem, respondem por SSH com o usuário `deploy`, têm Docker instalado e funcional, e o state do Terraform está persistido no Terraform Cloud (um segundo `terraform apply` sem mudanças no código não recria nada).
+
+## Guia: credenciais necessárias antes de rodar esta ticket
+
+São **3 coisas separadas** que depois convergem como variáveis do workspace no Terraform Cloud.
+
+### a) Chave de API da OCI (autentica o provider Terraform com a Oracle)
+
+1. Console da Oracle Cloud → ícone de perfil → **User settings** → **Tokens and keys**
+2. **API keys** → **Add API key** → **Generate API key pair** → **Download private key**
+3. A própria tela mostra um snippet com `tenancy` (OCID), `user` (OCID), `fingerprint` e `region` — guardar esses 4 valores + o arquivo da chave privada
+
+### b) Token de API do Cloudflare (autentica o provider Terraform com o Cloudflare)
+
+1. Dashboard do Cloudflare → **My Profile** → **API Tokens** → **Create Token**
+2. Custom token, com permissões: **Zone → DNS → Edit** (escopado só na zona `oikos.company`) + **Account → Access: Apps and Policies → Edit**
+3. Copiar o token gerado
+
+### c) Terraform Cloud (onde as credenciais viram config)
+
+1. Criar conta em app.terraform.io (se ainda não tiver)
+2. Criar uma organização e um workspace, conectado via VCS ao repo `devops`, apontando pra pasta `infra/terraform/`
+3. No workspace → **Variables** → adicionar como *Terraform variables* (marcadas **sensitive**): as 4 credenciais OCI + o token Cloudflare
+
+Assim que isso estiver feito, o restante da ticket (escrever os `.tf` e rodar `apply`) pode prosseguir.

@@ -35,3 +35,13 @@ Nenhuma — pode continuar/terminar imediatamente.
 ## Definição de Pronto
 
 Um PR de teste, ao ser mergeado em `production`, cria a tag SemVer sozinho e dispara o `repository_dispatch` visível na aba Actions do `devops`.
+
+## Guia: criar o PAT fine-grained
+
+Mesmo procedimento do T1 (`api`) — ver o guia completo lá. Resumo:
+1. GitHub → avatar → **Settings** → **Developer settings** → **Personal access tokens** → **Fine-grained tokens** → **Generate new token**
+2. **Resource owner**: `oikos-circular-environment` · **Repository access**: só **`devops`** · **Permissions** → **Contents**: `Read and write`
+3. **Generate token**, copiar o valor
+4. No repo **`web`** → **Settings** → **Secrets and variables** → **Actions** → **New repository secret** → nome `DEVOPS_DISPATCH_PAT` → colar
+
+**Token separado do `api`** — não reaproveitar o mesmo, mesmo com permissão idêntica.

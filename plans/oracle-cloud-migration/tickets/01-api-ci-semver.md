@@ -48,3 +48,19 @@ Nenhuma — pode começar imediatamente.
 ## Definição de Pronto
 
 Um PR de teste, ao ser mergeado em `production`, cria a tag SemVer sozinho e dispara o `repository_dispatch` visível na aba Actions do `devops` (mesmo que o `devops` ainda não tenha um `deploy.yml` pronto pra reagir).
+
+## Guia: criar o PAT fine-grained
+
+**O que é**: um Personal Access Token autentica chamadas de API do GitHub. "Fine-grained" é o tipo granular — em vez de acesso a todos os seus repos (PAT clássico), você escolhe exatamente qual repositório e qual permissão dentro dele. Não tem relação com "criar variáveis no projeto".
+
+**Por que precisa disso aqui**: o `ci.yml` do `api`, ao terminar, precisa chamar a API `repos/oikos-circular-environment/devops/dispatches` pra avisar o `devops` que saiu versão nova. O `GITHUB_TOKEN` automático que todo workflow ganha de graça só tem permissão **dentro do próprio repositório onde roda** — não serve pra mexer no `devops`, que é outro repo. Por isso precisa de um token à parte, com permissão explícita sobre o `devops`. Confirmado: `repository_dispatch` exige a permissão **"Contents: Read and write"** no repositório de destino.
+
+**Passo a passo**:
+1. GitHub → avatar → **Settings** → **Developer settings** → **Personal access tokens** → **Fine-grained tokens** → **Generate new token**
+2. **Resource owner**: `oikos-circular-environment`
+3. **Repository access**: "Only select repositories" → escolher só **`devops`**
+4. **Permissions** → **Repository permissions** → **Contents**: `Read and write`
+5. **Generate token** → copiar o valor (só aparece uma vez)
+6. No repo **`api`** → **Settings** → **Secrets and variables** → **Actions** → **New repository secret** → nome `DEVOPS_DISPATCH_PAT` → colar o valor
+
+**Importante**: gerar um token **separado** pro `web` (T3) — não reaproveitar este mesmo token nos dois repos, mesmo que a permissão seja idêntica (facilita revogar um sem afetar o outro).
