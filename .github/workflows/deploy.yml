@@ -1,0 +1,231 @@
+name: Deploy
+
+on:
+  repository_dispatch:
+    types: [api-production, web-production]
+  workflow_dispatch:
+    inputs:
+      service:
+        description: "Servico a implantar"
+        required: true
+        type: choice
+        options: [api, web]
+      sha:
+        description: "SHA do commit a implantar (repo de origem)"
+        required: true
+      version:
+        description: "Versao (tag SemVer) sendo implantada"
+        required: true
+
+concurrency:
+  group: deploy-${{ github.event.action || inputs.service }}
+  cancel-in-progress: false
+
+jobs:
+  api-production:
+    if: github.event.action == 'api-production' || (github.event_name == 'workflow_dispatch' && inputs.service == 'api')
+    runs-on: ubuntu-latest
+    environment: api-production
+    steps:
+      - name: Checkout devops (compose, Dockerfiles, scripts)
+        uses: actions/checkout@v4
+
+      - name: Checkout api (fonte pra build da imagem)
+        uses: actions/checkout@v4
+        with:
+          repository: oikos-circular-environment/api
+          ref: ${{ github.event.client_payload.sha || inputs.sha }}
+          token: ${{ secrets.SOURCE_REPO_PAT }}
+          path: source/api
+
+      - name: Determina a tag da versao
+        id: version
+        run: echo "tag=${{ github.event.client_payload.version || inputs.version }}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login no GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_PAT }}
+
+      - name: Build e push da imagem api (arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: source/api
+          file: docker/Dockerfile.api.prod
+          platforms: linux/arm64
+          push: true
+          tags: ghcr.io/oikos-circular-environment/api:${{ steps.version.outputs.tag }}
+
+      - name: Configura chave SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_DEPLOY_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ vars.VM_HOST }}" >> ~/.ssh/known_hosts
+
+      # Renderiza o .env.prod inteiro localmente (nao via sed remoto) - evita
+      # qualquer problema de escaping de caractere especial em senha/segredo
+      # dentro de um comando SSH remoto. O arquivo so existe nesse runner
+      # efemero e no destino final (VM), nunca commitado (ver .gitignore).
+      - name: Renderiza .env.prod a partir dos secrets
+        env:
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          MINIO_ACCESS_KEY: ${{ secrets.MINIO_ACCESS_KEY }}
+          MINIO_SECRET_KEY: ${{ secrets.MINIO_SECRET_KEY }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          GOOGLE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_ACCOUNT_EMAIL }}
+          GOOGLE_ACCOUNT_PASSWORD: ${{ secrets.GOOGLE_ACCOUNT_PASSWORD }}
+          APPLE_ACCOUNT_EMAIL: ${{ secrets.APPLE_ACCOUNT_EMAIL }}
+          APPLE_ACCOUNT_PASSWORD: ${{ secrets.APPLE_ACCOUNT_PASSWORD }}
+          ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+        run: |
+          cat > /tmp/env.prod.rendered <<EOF
+          API_VERSION=${{ steps.version.outputs.tag }}
+          WEB_VERSION=\${WEB_VERSION:-latest}
+
+          POSTGRES_USER=${POSTGRES_USER}
+          POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+          POSTGRES_DB=oikos
+
+          REDIS_PASSWORD=${REDIS_PASSWORD}
+
+          MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+          MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+
+          JWT_SECRET=${JWT_SECRET}
+          GOOGLE_ACCOUNT_EMAIL=${GOOGLE_ACCOUNT_EMAIL}
+          GOOGLE_ACCOUNT_PASSWORD=${GOOGLE_ACCOUNT_PASSWORD}
+          APPLE_ACCOUNT_EMAIL=${APPLE_ACCOUNT_EMAIL}
+          APPLE_ACCOUNT_PASSWORD=${APPLE_ACCOUNT_PASSWORD}
+          ADMIN_USERNAME=${ADMIN_USERNAME}
+          ADMIN_PASSWORD=${ADMIN_PASSWORD}
+          QUORUM_JOB_DELAY_MS=86400000
+          ACCOUNT_DELETION_DELAY_MS=7776000000
+          WORKER_CONCURRENCY=5
+
+          PROMETHEUS_REMOTE_WRITE_URL=http://${{ vars.OBSERVABILITY_PRIVATE_IP }}:9090/api/v1/write
+          LOKI_URL=http://${{ vars.OBSERVABILITY_PRIVATE_IP }}:3100/loki/api/v1/push
+          TEMPO_ENDPOINT=${{ vars.OBSERVABILITY_PRIVATE_IP }}:4317
+          EOF
+
+      - name: Sincroniza arquivos de deploy pra VM
+        run: |
+          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" 'mkdir -p /opt/oikos/docker/certs'
+          scp -i ~/.ssh/deploy_key -r docker nginx scripts \
+            deploy@"${{ vars.VM_HOST }}":/opt/oikos/
+          # WEB_VERSION preexistente (se houver) precisa sobreviver ao
+          # render acima, que so sabe a versao da api - preserva o valor
+          # atual do arquivo remoto antes de mandar o novo.
+          CURRENT_WEB_VERSION=$(ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
+            "grep '^WEB_VERSION=' /opt/oikos/docker/.env.prod 2>/dev/null | cut -d= -f2" || echo "latest")
+          sed -i "s|WEB_VERSION=\${WEB_VERSION:-latest}|WEB_VERSION=${CURRENT_WEB_VERSION:-latest}|" /tmp/env.prod.rendered
+          scp -i ~/.ssh/deploy_key /tmp/env.prod.rendered deploy@"${{ vars.VM_HOST }}":/opt/oikos/docker/.env.prod
+          rm -f /tmp/env.prod.rendered
+
+      - name: Materializa certificado Cloudflare Origin CA
+        run: |
+          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
+            "cat > /opt/oikos/docker/certs/origin.pem" <<< "${{ secrets.CLOUDFLARE_ORIGIN_CERT }}"
+          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
+            "cat > /opt/oikos/docker/certs/origin.key && chmod 600 /opt/oikos/docker/certs/origin.key" <<< "${{ secrets.CLOUDFLARE_ORIGIN_KEY }}"
+
+      - name: Backup de seguranca do Postgres (antes de qualquer mudanca)
+        run: |
+          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
+            "/opt/oikos/scripts/backup-postgres.sh"
+
+      - name: Roda a migration (para o deploy se falhar - container antigo continua servindo)
+        run: |
+          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
+            "cd /opt/oikos/docker && docker compose -f docker-compose.prod.yml run --rm api npx prisma migrate deploy"
+
+      - name: Deploy targeted do servico api
+        run: |
+          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
+            "cd /opt/oikos/docker && docker compose -f docker-compose.prod.yml pull api && docker compose -f docker-compose.prod.yml up -d api"
+
+  web-production:
+    if: github.event.action == 'web-production' || (github.event_name == 'workflow_dispatch' && inputs.service == 'web')
+    runs-on: ubuntu-latest
+    environment: web-production
+    steps:
+      - name: Checkout devops (compose, Dockerfiles, scripts)
+        uses: actions/checkout@v4
+
+      - name: Checkout web (fonte pra build da imagem)
+        uses: actions/checkout@v4
+        with:
+          repository: oikos-circular-environment/web
+          ref: ${{ github.event.client_payload.sha || inputs.sha }}
+          token: ${{ secrets.SOURCE_REPO_PAT }}
+          path: source/web
+
+      - name: Determina a tag da versao
+        id: version
+        run: echo "tag=${{ github.event.client_payload.version || inputs.version }}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login no GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_PAT }}
+
+      - name: Build e push da imagem web (arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: source/web
+          file: docker/Dockerfile.web.prod
+          platforms: linux/arm64
+          push: true
+          tags: ghcr.io/oikos-circular-environment/web:${{ steps.version.outputs.tag }}
+
+      - name: Configura chave SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_DEPLOY_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ vars.VM_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Sincroniza arquivos de deploy pra VM
+        run: |
+          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" 'mkdir -p /opt/oikos/docker/certs'
+          scp -i ~/.ssh/deploy_key -r docker nginx scripts \
+            deploy@"${{ vars.VM_HOST }}":/opt/oikos/
+
+      # So mexe na linha de WEB_VERSION - nunca toca nos segredos do
+      # api-production, que esse job (Environment web-production) nem tem
+      # acesso. Valor vem da tag SemVer gerada pelo CI do web (formato
+      # controlado, seguro pra sed sem risco de caractere especial).
+      - name: Atualiza WEB_VERSION no .env.prod remoto
+        run: |
+          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" "
+            touch /opt/oikos/docker/.env.prod
+            if grep -q '^WEB_VERSION=' /opt/oikos/docker/.env.prod; then
+              sed -i 's/^WEB_VERSION=.*/WEB_VERSION=${{ steps.version.outputs.tag }}/' /opt/oikos/docker/.env.prod
+            else
+              echo 'WEB_VERSION=${{ steps.version.outputs.tag }}' >> /opt/oikos/docker/.env.prod
+            fi
+          "
+
+      - name: Deploy targeted do servico web
+        run: |
+          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
+            "cd /opt/oikos/docker && docker compose -f docker-compose.prod.yml pull web && docker compose -f docker-compose.prod.yml up -d web"
