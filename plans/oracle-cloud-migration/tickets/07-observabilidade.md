@@ -1,6 +1,6 @@
 # T7 — `devops`: Observabilidade Re-tunada
 
-**Status**: Não iniciado
+**Status**: Escrito e validado localmente, na branch `feature/t7-observabilidade`. Falta subir na VM real e confirmar visualização no Grafana (deferido pra revisão final, ticket 99).
 **Repositório**: `oikos-circular-environment/devops`
 
 ## Escopo
@@ -9,7 +9,7 @@ Stack completa de observabilidade (Prometheus + Loki + Tempo + Grafana + Alertma
 
 ## Fora de escopo
 
-Dashboards novos além dos 2 já existentes (reaproveitados de `docs/infra-monitoring-producao.md`, não recriados do zero).
+Dashboards novos além dos 2 especificados em `docs/infra-monitoring-producao.md` (Infra Overview e Container Detail) — esses dois só foram **materializados como arquivo** agora (existiam só como especificação em prosa no doc, nunca tinham sido criados como JSON de verdade no repo).
 
 ## Referências de spec
 
@@ -24,15 +24,16 @@ T4 (precisa das duas VMs existindo e se comunicando por IP privado).
 ## Checklist
 
 **Rede (pré-requisito, antes de qualquer coisa nessa ticket funcionar de ponta a ponta):**
-- [ ] `infra/terraform/network/` — adicionar regras de ingresso na Security List liberando, só a partir do CIDR da subnet privada (`10.0.1.0/24`, não pra internet): Prometheus `remote_write` (9090), Loki `push` (3100), Tempo OTLP gRPC (4317), Grafana UI (3000). Achado ao planejar a T4: a OCI **não libera tráfego entre VMs da mesma subnet automaticamente** — precisa de regra explícita mesmo sendo intra-VCN, diferente de outras clouds. Sem isso o `nginx` da `A1.Flex` não alcança o Grafana, e o Alloy da `A1.Flex` não consegue mandar métricas/logs/traces pra `E2.1.Micro`.
+- [x] `infra/terraform/network/` — regras de ingresso na Security List liberando, só a partir do CIDR da subnet **pública** (`10.0.1.0/24`, onde roda o Alloy na `A1.Flex`) — nunca da internet: Prometheus `remote_write` (9090), Loki `push` (3100), Tempo OTLP gRPC (4317), Grafana UI (3000). Achado ao planejar a T4: a OCI **não libera tráfego entre subnets da mesma VCN automaticamente** — precisa de regra explícita. Sem isso o `nginx` da `A1.Flex` não alcança o Grafana, e o Alloy não consegue mandar métricas/logs/traces pra `E2.1.Micro`.
 
-**Na `E2.1.Micro`:**
-- [ ] `observability/docker-compose.observability.yml` — `prometheus`, limite re-tunado (~200MB)
-- [ ] `observability/docker-compose.observability.yml` — `loki`, limite re-tunado (~150MB)
-- [ ] `observability/docker-compose.observability.yml` — `tempo`, limite re-tunado (~120MB)
-- [ ] `observability/docker-compose.observability.yml` — `grafana`, limite re-tunado (~180MB)
-- [ ] `observability/docker-compose.observability.yml` — `alertmanager`, limite re-tunado (~25MB)
-- [ ] Soma dos 5 limites fica em ~875MB, com folga pro SO/Docker dentro de 1GB
+**Na `E2.1.Micro`** — feito via `observability/docker-compose.observability.prod.yml` (override, novo — não mexe no arquivo base usado pelo dev local):
+- [x] `prometheus`, limite re-tunado 200MB
+- [x] `loki`, limite re-tunado 150MB
+- [x] `tempo`, limite re-tunado 120MB (+ porta 4317 exposta pro host, necessária pro Alloy da outra VM alcançar via IP privado)
+- [x] `grafana`, limite re-tunado 180MB
+- [x] `alertmanager`, limite re-tunado 25MB
+- [x] Soma dos 5 limites: 675MB de limite hard, com folga real pro SO/Docker dentro de 1GB
+- [x] Deploy de produção sobe só esses 5 serviços (`docker compose -f docker-compose.observability.yml -f docker-compose.observability.prod.yml up -d prometheus loki tempo grafana alertmanager`) — `otelcol`/`promtail` ficam de fora (substituídos pelo Alloy da `A1.Flex`), mesmo continuando declarados no arquivo base pro dev local não quebrar
 
 **Na `A1.Flex`** (dentro do `docker-compose.prod.yml` de T6 — ✅ escrito e validado com `alloy validate`):
 - [x] Serviço `cadvisor` — métrica por container (CPU, RAM, rede, disco), 128MB
@@ -46,10 +47,10 @@ T4 (precisa das duas VMs existindo e se comunicando por IP privado).
 - [x] Config `alloy-prod.alloy` — envio de traces (OTLP gRPC) pro Tempo da `E2.1.Micro` via IP privado
 - [x] `sys.env(...)` usado em vez de `env(...)` (deprecado — `alloy validate` falhava com `env()`, achado só ao validar de verdade, não só formatar)
 
-**Dashboards:**
-- [ ] Adaptar dashboard "Infra Overview" pro novo ambiente (filtro `container_label_com_docker_compose_project="oikos-prod"` continua válido)
-- [ ] Adaptar dashboard "Container Detail" pro novo ambiente
-- [ ] Confirmar visualização de CPU/RAM/rede/disco por container e do host consolidado no Grafana
+**Dashboards** (`observability/grafana/dashboards/`, carregados automaticamente pelo provisionamento do Grafana):
+- [x] `infra-overview.json` — criado a partir da spec em `docs/infra-monitoring-producao.md` (4 linhas: host CPU/RAM/disco, CPU por container, RAM por container, rede por container), filtro `container_label_com_docker_compose_project="oikos-prod"`
+- [x] `infra-container.json` — criado, variável `$service` (dropdown via `label_values`), painéis de CPU/throttling/RAM/rede/disco/restart count por container
+- [ ] Confirmar visualização com dados reais no Grafana (precisa da stack rodando de verdade — deferido pra revisão final)
 
 ## Definição de Pronto
 

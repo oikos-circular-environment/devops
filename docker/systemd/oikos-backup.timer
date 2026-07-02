@@ -1,0 +1,9 @@
+[Unit]
+Description=Backup diario do Postgres e Redis (04:00, antes do restart noturno do web as 03:00 ja ter passado)
+
+[Timer]
+OnCalendar=*-*-* 04:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
