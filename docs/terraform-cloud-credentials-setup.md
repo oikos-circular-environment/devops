@@ -159,6 +159,20 @@ ssh -i chave.key -o ProxyCommand="ssh -i chave.key -W %h:%p deploy@<ip-publico-b
 
 **Correção**: VCN passou de 1 subnet compartilhada pra 2 subnets — pública (`A1.Flex`, rota → Internet Gateway) e privada (`E2.1.Micro`, rota → **NAT Gateway**, recurso novo, sem custo por hora na OCI). Cada subnet com sua própria route table; a Security List continua compartilhada entre as duas (as regras de 443/22 são inofensivas na subnet privada, já que não há IP público pra alcançar de qualquer forma).
 
+Decisão tomada depois: como ainda era configuração inicial (sem dado real, sem DNS apontado), em vez de usar `moved` blocks pra preservar a subnet/instância antiga durante o refactor, optamos por `destroy` completo + `apply` do zero — validando o pipeline inteiro (incluindo todos os bugs já corrigidos) partindo do nada, sem nenhum artefato histórico (`moved.tf`) sobrando no código.
+
+## 8. `terraform apply` via CLI local não funciona nesse workspace
+
+Mesmo com `terraform login` autenticado e `terraform init` conectando certinho ao backend remoto, `terraform apply` direto do terminal falha com:
+
+```
+Error: Apply not allowed for workspaces with a VCS connection
+A workspace that is connected to a VCS requires the VCS-driven workflow to
+ensure that the VCS remains the single source of truth.
+```
+
+`terraform plan` local funciona (gera um plano especulativo, só pra preview — não pode virar `apply`). Pra workspaces VCS-driven, todo `apply` real tem que vir do pipeline: push pra `production` (aprovação manual na UI) ou, quando o auto-trigger falha (ver problema recorrente acima), disparo manual via API reaproveitando uma `configuration-version` já ingerida do branch `production`.
+
 ## Referências
 
 - [Install Terraform / OCI CLI (tutorial HashiCorp)](https://developer.hashicorp.com/terraform/tutorials/oci-get-started/install-cli)

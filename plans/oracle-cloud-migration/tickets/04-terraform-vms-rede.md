@@ -1,8 +1,8 @@
 # T4 — `devops`: Terraform — VMs + Rede
 
-**Status**: **Pronta.** `apply` rodou com sucesso, as duas VMs e a rede existem de verdade na OCI, SSH e Docker confirmados nas duas. Processo completo de credenciais, do bug do `oci setup keys`, do bug do IPv6 na Security List e do bug de rede da subnet privada está documentado em [`docs/terraform-cloud-credentials-setup.md`](../../../docs/terraform-cloud-credentials-setup.md). Descoberta durante o planejamento: falta liberar portas internas de observabilidade na Security List (movido pra T7, ver checklist lá) — a OCI não libera tráfego intra-subnet automaticamente.
+**Status**: **Pronta.** Infra recriada do zero (`destroy` + `apply` completo) depois dos fixes de IPv6 e NAT Gateway, pra validar o pipeline inteiro sem depender de `moved` blocks (removido — nesse estágio inicial, sem dado real, não fazia sentido preservar identidade de recurso). SSH e Docker confirmados nas duas VMs pós-recriação. Processo completo de credenciais e dos 3 bugs encontrados (chave OCI criptografada, IPv6 na Security List, subnet sem rota de internet) está documentado em [`docs/terraform-cloud-credentials-setup.md`](../../../docs/terraform-cloud-credentials-setup.md). Descoberta durante o planejamento: falta liberar portas internas de observabilidade na Security List (movido pra T7, ver checklist lá) — a OCI não libera tráfego intra-subnet automaticamente.
 
-**Bug de rede encontrado ao testar SSH na `E2.1.Micro`**: `cloud-init` falhou ao instalar o Docker (`apt` com timeout) porque a subnet compartilhada só tinha rota via Internet Gateway — e um Internet Gateway na OCI só roteia tráfego de instância **com IP público**. A `E2.1.Micro` (sem IP público, por design) não tinha rota nenhuma pra internet. Correção: VCN passou a ter 2 subnets — pública (`A1.Flex`, rota → Internet Gateway) e privada (`E2.1.Micro`, rota → **NAT Gateway**, novo recurso). O refactor usou blocos `moved` pra preservar a identidade da subnet/route-table pública, evitando destruir a `oikos-app` (já validada) só por causa da renomeação dos recursos — só a `oikos-observability` precisou ser recriada de fato. Detalhes em `docs/infrastructure.md`.
+**Bug de rede encontrado ao testar SSH na `E2.1.Micro`**: `cloud-init` falhou ao instalar o Docker (`apt` com timeout) porque a subnet compartilhada só tinha rota via Internet Gateway — e um Internet Gateway na OCI só roteia tráfego de instância **com IP público**. A `E2.1.Micro` (sem IP público, por design) não tinha rota nenhuma pra internet. Correção: VCN passou a ter 2 subnets — pública (`A1.Flex`, rota → Internet Gateway) e privada (`E2.1.Micro`, rota → **NAT Gateway**, novo recurso).
 **Repositório**: `oikos-circular-environment/devops`
 
 ## Escopo
@@ -41,17 +41,19 @@ Nenhuma.
 - [x] IPs públicos das duas VMs anotados (necessários pra T5) — ver tabela abaixo
 - [x] SSH manual de teste com o usuário `deploy` funcionando nas duas VMs — confirmado nas duas, com Docker instalado e funcional (`docker --version` OK); swap de 9GB ativo na `E2.1.Micro`
 
-**IPs (saída do `terraform apply`, após o fix da subnet privada)**:
+**IPs (saída do `terraform apply` do zero, pós-destroy)**:
 
 | VM | IP público | IP privado |
 |---|---|---|
-| `oikos-app` (A1.Flex) | `204.216.187.155` | `10.0.1.227` |
-| `oikos-observability` (E2.1.Micro) | — (sem IP público, por design) | `10.0.2.150` |
+| `oikos-app` (A1.Flex) | `134.65.229.35` | `10.0.1.196` |
+| `oikos-observability` (E2.1.Micro) | — (sem IP público, por design) | `10.0.2.37` |
 
 **Acesso SSH na `E2.1.Micro`**: sem IP público, então SSH só via bastion pela `A1.Flex`. `ssh -J` não propaga a identidade explícita (`-i`) pro salto — usar `ProxyCommand` explícito:
 ```bash
-ssh -i <chave> -o ProxyCommand="ssh -i <chave> -W %h:%p deploy@204.216.187.155" deploy@10.0.2.150
+ssh -i <chave> -o ProxyCommand="ssh -i <chave> -W %h:%p deploy@134.65.229.35" deploy@10.0.2.37
 ```
+
+**Nota sobre `apply` via CLI local**: `terraform apply` direto do terminal (mesmo autenticado via `terraform login`) **não funciona** nesse workspace — Terraform Cloud recusa (`Apply not allowed for workspaces with a VCS connection`) porque o workspace é VCS-driven, então só aceita `apply` disparado pelo próprio pipeline (push + aprovação na UI, ou via API reaproveitando uma configuration version já ingerida). `terraform plan` local funciona, mas só gera um plano especulativo, não aplicável.
 
 ## Definição de Pronto
 
