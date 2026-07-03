@@ -169,13 +169,18 @@ jobs:
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
             "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml pull api && docker compose --env-file .env.prod -f docker-compose.prod.yml up -d api"
 
-      # nginx.conf e alloy-prod.alloy foram sincronizados no step de scp acima,
-      # mas nenhum dos dois recarrega config sozinho (T11) - reload sem downtime
-      # no nginx, restart no alloy (nao tem sinal de reload exposto aqui)
-      - name: Recarrega nginx e alloy (config pode ter mudado no scp acima)
+      # nginx.conf e alloy-prod.alloy sao montados como bind mount de ARQUIVO
+      # UNICO no docker-compose.prod.yml. `sed -i` (usado no scp acima) reescreve
+      # via arquivo temporario + rename, trocando o inode - um bind mount de
+      # arquivo unico fica preso no inode antigo, entao nem `nginx -s reload`
+      # nem `docker compose restart` enxergam o conteudo novo (so recriar o
+      # container remonta o bind). Achado em producao (T11, 2026-07-03): o
+      # fix do www.oikos.company nao pegou mesmo depois do deploy, porque o
+      # container do nginx nunca tinha sido recriado desde o bootstrap (T6).
+      - name: Recria nginx e alloy (bind mount de arquivo unico nao atualiza com reload/restart)
         run: |
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
-            "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml exec nginx nginx -s reload && docker compose --env-file .env.prod -f docker-compose.prod.yml restart alloy"
+            "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --force-recreate --no-deps nginx alloy"
 
   web-production:
     if: github.event.action == 'web-production' || (github.event_name == 'workflow_dispatch' && inputs.service == 'web')
@@ -254,10 +259,10 @@ jobs:
             "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml pull web && docker compose --env-file .env.prod -f docker-compose.prod.yml up -d web"
 
       # Ver comentario equivalente no job api-production (T11)
-      - name: Recarrega nginx e alloy (config pode ter mudado no scp acima)
+      - name: Recria nginx e alloy (bind mount de arquivo unico nao atualiza com reload/restart)
         run: |
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
-            "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml exec nginx nginx -s reload && docker compose --env-file .env.prod -f docker-compose.prod.yml restart alloy"
+            "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --force-recreate --no-deps nginx alloy"
 
   # T11 - mudanca so em nginx/observability/scripts/docker-compose.prod.yml
   # (disparada pelo trigger push, ver "on:" acima). Nao builda nem redeploya
@@ -289,7 +294,8 @@ jobs:
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
             "sed -i 's/__OBS_VM_PRIVATE_IP__/${{ vars.OBSERVABILITY_PRIVATE_IP }}/' /opt/oikos/nginx/nginx.conf"
 
-      - name: Recarrega nginx e alloy
+      # Ver comentario equivalente no job api-production (T11)
+      - name: Recria nginx e alloy (bind mount de arquivo unico nao atualiza com reload/restart)
         run: |
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
-            "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml exec nginx nginx -s reload && docker compose --env-file .env.prod -f docker-compose.prod.yml restart alloy"
+            "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --force-recreate --no-deps nginx alloy"
