@@ -24,7 +24,12 @@ concurrency:
 jobs:
   api-production:
     if: github.event.action == 'api-production' || (github.event_name == 'workflow_dispatch' && inputs.service == 'api')
-    runs-on: ubuntu-latest
+    # Runner arm64 nativo - evita cross-compile via QEMU (docker/setup-qemu-action),
+    # que travava com "qemu: uncaught target signal 4 (Illegal instruction)" durante
+    # o npm ci, sem nem reportar falha (ficava preso indefinidamente). Achado ao
+    # testar o workflow_dispatch de verdade (T9). A1.Flex tambem e arm64 (Ampere),
+    # entao a imagem buildada aqui roda nativa la, sem tradução nenhuma.
+    runs-on: ubuntu-24.04-arm
     environment: api-production
     steps:
       - name: Checkout devops (compose, Dockerfiles, scripts)
@@ -41,9 +46,6 @@ jobs:
       - name: Determina a tag da versao
         id: version
         run: echo "tag=${{ github.event.client_payload.version || inputs.version }}" >> "$GITHUB_OUTPUT"
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
@@ -153,7 +155,9 @@ jobs:
 
   web-production:
     if: github.event.action == 'web-production' || (github.event_name == 'workflow_dispatch' && inputs.service == 'web')
-    runs-on: ubuntu-latest
+    # Ver comentario no job api-production - mesmo motivo (runner arm64 nativo,
+    # sem QEMU).
+    runs-on: ubuntu-24.04-arm
     environment: web-production
     steps:
       - name: Checkout devops (compose, Dockerfiles, scripts)
@@ -170,9 +174,6 @@ jobs:
       - name: Determina a tag da versao
         id: version
         run: echo "tag=${{ github.event.client_payload.version || inputs.version }}" >> "$GITHUB_OUTPUT"
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
