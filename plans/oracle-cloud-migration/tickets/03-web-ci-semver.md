@@ -1,6 +1,6 @@
 # T3 — `web`: CI + Versionamento
 
-**Status**: Em andamento (`next.config.ts` já ajustado)
+**Status**: **Pronta.** Pipeline de deploy automático validado de ponta a ponta em 2026-07-03 — merge real em `production` disparou tag SemVer + `repository_dispatch` + deploy sozinho, sem intervenção manual (`web` rodando `v0.0.3` em produção).
 **Repositório**: `oikos-circular-environment/web`
 
 ## Escopo
@@ -28,9 +28,9 @@ Nenhuma — pode continuar/terminar imediatamente.
 - [x] Step de tag SemVer automática (`mathieudutour/github-tag-action`, `default_bump: patch`) ao detectar push em `production`
 - [x] MAJOR/MINOR continuam manuais
 - [x] Step de `repository_dispatch` pro `oikos-circular-environment/devops`, `event_type: web-production`, payload `{version, sha}` — [PR #13](https://github.com/oikos-circular-environment/web/pull/13) adiciona `-f`/`--fail` no `curl`; sem isso, uma resposta HTTP de erro do GitHub (ex: 401 por secret ausente) não falhava o step, mascarando o problema
-- [ ] Criar PAT fine-grained **próprio** (não compartilhado com o do `api`), escopado só pro repo `devops` (feito pelo usuário)
-- [ ] Cadastrar o PAT como secret `DEVOPS_DISPATCH_PAT` no repo `web` (usuário cadastra o valor)
-- [ ] Validar workflow rodando de verdade num PR de teste — **confirmado que ainda falta**: um merge real em `production` (PR #12, 2026-07-03) rodou o step, mas o `curl` recebeu 401 (secret nunca cadastrado) e o deploy nunca disparou no `devops` — passou despercebido até o `curl -f` acima ser adicionado
+- [x] Criar PAT fine-grained **próprio** (não compartilhado com o do `api`), escopado só pro repo `devops`, `Contents: Read and write` — na primeira tentativa errou o repositório selecionado (apontou pro `web` em vez do `devops`) e depois a permissão (`Read-only`); corrigido recriando o token do zero
+- [x] Cadastrar o PAT como secret `DEVOPS_DISPATCH_PAT` no repo `web`
+- [x] Validar workflow rodando de verdade num PR de teste — merge real em `production` (2026-07-03) disparou `repository_dispatch` sozinho, `devops` buildou e implantou `v0.0.3` automaticamente, sem `workflow_dispatch` manual
 
 ## Definição de Pronto
 
