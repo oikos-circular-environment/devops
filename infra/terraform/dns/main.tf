@@ -83,4 +83,11 @@ resource "cloudflare_origin_ca_certificate" "this" {
   hostnames          = [var.domain_name, "*.${var.domain_name}"]
   request_type       = "origin-rsa"
   requested_validity = 5475 # 15 anos - o maximo permitido
+
+  lifecycle {
+    # A API da Cloudflare nao garante a mesma ordem de "hostnames" no
+    # retorno - sem isso, todo plan detecta uma "mudanca" (so a ordem)
+    # e forca recriar o certificado (hostnames e ForceNew nesse recurso).
+    ignore_changes = [hostnames]
+  }
 }
