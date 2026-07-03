@@ -1,6 +1,6 @@
 # T2 — `mobile`: CI + Versionamento
 
-**Status**: Em andamento (`ci.yml` escrito, falta validar rodando)
+**Status**: Em andamento — job `quality` (format/lint/test) já rodou de verdade com sucesso num push real em `development` ([run 28616971126](https://github.com/oikos-circular-environment/mobile/actions/runs/28616971126)). Falta só validar o job `tag`, que só dispara em push em `production` — `production` estava 16 commits atrás de `development` e sem o `ci.yml`, então abri [PR #46](https://github.com/oikos-circular-environment/mobile/pull/46) (`development` → `production`) pra trazer o workflow e disparar a tag automaticamente. Aguardando o usuário revisar/mergear (mesmo padrão de T1/T3, onde merges em `production` são feitos pelo usuário).
 **Repositório**: `oikos-circular-environment/mobile`
 
 ## Escopo
