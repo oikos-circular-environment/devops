@@ -1,6 +1,6 @@
 # T1 — `api`: CI + Versionamento
 
-**Status**: Em andamento (dev/simulation profiles + scripts npm já feitos). **Achado 2026-07-03**: o repo `api` ainda não tem branch `production` — o step de tag SemVer/dispatch (`if: github.ref == 'refs/heads/production'`) nunca rodou de verdade, nem uma vez.
+**Status**: Em andamento (dev/simulation profiles + scripts npm já feitos). **Achado 2026-07-03**: a branch `production` existe no remoto, mas o último merge nela foi em 2026-06-24 — uma semana **antes** do `ci.yml` existir no repo (adicionado em 2026-07-01). `gh run list --branch production` retorna vazio: o step de tag SemVer/dispatch nunca rodou lá nem uma vez. Precisa de um merge `development` → `production` de verdade pra validar isso (fora do escopo desta sessão, decisão do usuário sobre quando fazer).
 **Repositório**: `oikos-circular-environment/api`
 
 ## Escopo
