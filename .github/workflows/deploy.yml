@@ -30,15 +30,25 @@ on:
       - "docker/docker-compose.prod.yml"
 
 concurrency:
-  # Grupo unico (nao mais por acao/servico) - api-production, web-production
-  # e infra-production mexem nos mesmos arquivos/containers na mesma VM,
-  # entao precisam ser serializados entre si, nao so contra execucoes
-  # repetidas de si mesmos.
+  # Grupo unico (nao por acao/servico) - as 3 pipelines (api, web, infra -
+  # cada uma modularizada em varios jobs desde T9) mexem nos mesmos
+  # arquivos/containers na mesma VM, entao precisam ser serializadas entre
+  # si, nao so contra execucoes repetidas de si mesmas. Ficaria fora de
+  # controle usar um grupo por job, ja que "concurrency" e por workflow run,
+  # nao por job - continua valendo do mesmo jeito com a modularizacao.
   group: deploy-vm
   cancel-in-progress: false
 
 jobs:
-  api-production:
+  # --- api: build -> sync -> backup -> migrate -> deploy-container ---------
+  # Modularizado (2026-07-03, T9) - motivo e legibilidade, nao economia de
+  # rebuild num "Re-run failed jobs" (na pratica a recuperacao de uma falha e
+  # disparar um novo repository_dispatch/workflow_dispatch, que builda de
+  # qualquer jeito). Jobs separados deixam claro na UI do Actions em qual
+  # etapa a execucao esta parada/falhou. So o job "api-build" tem o `if:` -
+  # se ele for pulado (evento nao e api-production), os jobs downstream com
+  # `needs:` sao pulados automaticamente (comportamento padrao do Actions).
+  api-build:
     if: github.event.action == 'api-production' || (github.event_name == 'workflow_dispatch' && inputs.service == 'api')
     # Runner arm64 nativo - evita cross-compile via QEMU (docker/setup-qemu-action),
     # que travava com "qemu: uncaught target signal 4 (Illegal instruction)" durante
@@ -46,9 +56,10 @@ jobs:
     # testar o workflow_dispatch de verdade (T9). A1.Flex tambem e arm64 (Ampere),
     # entao a imagem buildada aqui roda nativa la, sem tradução nenhuma.
     runs-on: ubuntu-24.04-arm
-    environment: api-production
+    outputs:
+      version: ${{ steps.version.outputs.tag }}
     steps:
-      - name: Checkout devops (compose, Dockerfiles, scripts)
+      - name: Checkout devops (Dockerfile)
         uses: actions/checkout@v4
 
       - name: Checkout api (fonte pra build da imagem)
@@ -82,6 +93,17 @@ jobs:
           push: true
           tags: ghcr.io/oikos-circular-environment/api:${{ steps.version.outputs.tag }}
 
+  api-sync:
+    needs: api-build
+    runs-on: ubuntu-24.04-arm
+    # So esse job precisa dos secrets de app (Postgres/Redis/MinIO/JWT/Admin)
+    # pra renderizar o .env.prod - build/backup/migrate/deploy-container so
+    # usam secret de repositorio (SSH_DEPLOY_KEY), nao precisam do Environment.
+    environment: api-production
+    steps:
+      - name: Checkout devops (compose, nginx, observability, scripts)
+        uses: actions/checkout@v4
+
       - name: Configura chave SSH
         run: |
           mkdir -p ~/.ssh
@@ -105,7 +127,7 @@ jobs:
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
         run: |
           cat > /tmp/env.prod.rendered <<EOF
-          API_VERSION=${{ steps.version.outputs.tag }}
+          API_VERSION=${{ needs.api-build.outputs.version }}
           WEB_VERSION=\${WEB_VERSION:-latest}
 
           POSTGRES_USER=${POSTGRES_USER}
@@ -158,15 +180,48 @@ jobs:
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
             "cat > /opt/oikos/docker/certs/origin.key && chmod 600 /opt/oikos/docker/certs/origin.key" <<< "${{ secrets.CLOUDFLARE_ORIGIN_KEY }}"
 
+  api-backup:
+    needs: api-sync
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Configura chave SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_DEPLOY_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ vars.VM_HOST }}" >> ~/.ssh/known_hosts
+
       - name: Backup de seguranca do Postgres (antes de qualquer mudanca)
         run: |
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
             "/opt/oikos/scripts/backup-postgres.sh"
 
+  api-migrate:
+    needs: api-backup
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Configura chave SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_DEPLOY_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ vars.VM_HOST }}" >> ~/.ssh/known_hosts
+
       - name: Roda a migration (para o deploy se falhar - container antigo continua servindo)
         run: |
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
             "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml run --rm api npx prisma migrate deploy"
+
+  api-deploy-container:
+    needs: api-migrate
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Configura chave SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_DEPLOY_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ vars.VM_HOST }}" >> ~/.ssh/known_hosts
 
       - name: Deploy targeted do servico api
         run: |
@@ -186,14 +241,18 @@ jobs:
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
             "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --force-recreate --no-deps nginx alloy"
 
-  web-production:
+  # --- web: build -> sync -> deploy-container -------------------------------
+  # Sem backup/migrate (nao existe migration do Prisma pro web). Mesmo motivo
+  # de modularizacao do api acima (legibilidade).
+  web-build:
     if: github.event.action == 'web-production' || (github.event_name == 'workflow_dispatch' && inputs.service == 'web')
-    # Ver comentario no job api-production - mesmo motivo (runner arm64 nativo,
+    # Ver comentario no job api-build - mesmo motivo (runner arm64 nativo,
     # sem QEMU).
     runs-on: ubuntu-24.04-arm
-    environment: web-production
+    outputs:
+      version: ${{ steps.version.outputs.tag }}
     steps:
-      - name: Checkout devops (compose, Dockerfiles, scripts)
+      - name: Checkout devops (Dockerfile)
         uses: actions/checkout@v4
 
       - name: Checkout web (fonte pra build da imagem)
@@ -227,6 +286,13 @@ jobs:
           push: true
           tags: ghcr.io/oikos-circular-environment/web:${{ steps.version.outputs.tag }}
 
+  web-sync:
+    needs: web-build
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout devops (compose, nginx, observability, scripts)
+        uses: actions/checkout@v4
+
       - name: Configura chave SSH
         run: |
           mkdir -p ~/.ssh
@@ -242,27 +308,43 @@ jobs:
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
             "sed -i 's/__OBS_VM_PRIVATE_IP__/${{ vars.OBSERVABILITY_PRIVATE_IP }}/' /opt/oikos/nginx/nginx.conf"
 
-      # So mexe na linha de WEB_VERSION - nunca toca nos segredos do
-      # api-production, que esse job (Environment web-production) nem tem
-      # acesso. Valor vem da tag SemVer gerada pelo CI do web (formato
-      # controlado, seguro pra sed sem risco de caractere especial).
+      # Nao precisa do Environment web-production pra isso - so mexe na linha
+      # de WEB_VERSION, nao em nenhum secret de app (Postgres/Redis/MinIO/JWT/
+      # Admin sao so do api). Valor vem da tag SemVer gerada pelo CI do web
+      # (formato controlado, seguro pra sed sem risco de caractere especial).
       - name: Atualiza WEB_VERSION no .env.prod remoto
         run: |
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" "
             touch /opt/oikos/docker/.env.prod
             if grep -q '^WEB_VERSION=' /opt/oikos/docker/.env.prod; then
-              sed -i 's/^WEB_VERSION=.*/WEB_VERSION=${{ steps.version.outputs.tag }}/' /opt/oikos/docker/.env.prod
+              sed -i 's/^WEB_VERSION=.*/WEB_VERSION=${{ needs.web-build.outputs.version }}/' /opt/oikos/docker/.env.prod
             else
-              echo 'WEB_VERSION=${{ steps.version.outputs.tag }}' >> /opt/oikos/docker/.env.prod
+              echo 'WEB_VERSION=${{ needs.web-build.outputs.version }}' >> /opt/oikos/docker/.env.prod
             fi
           "
+
+  web-deploy-container:
+    needs: web-sync
+    runs-on: ubuntu-24.04-arm
+    # Environment sem nenhum secret hoje (so o api tem os de app) - mantido
+    # aqui, no job que efetivamente troca o container, so pelo tracking de
+    # deployment que o GitHub associa a um Environment (visivel na aba
+    # "Environments" do repo).
+    environment: web-production
+    steps:
+      - name: Configura chave SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_DEPLOY_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ vars.VM_HOST }}" >> ~/.ssh/known_hosts
 
       - name: Deploy targeted do servico web
         run: |
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
             "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml pull web && docker compose --env-file .env.prod -f docker-compose.prod.yml up -d web"
 
-      # Ver comentario equivalente no job api-production (T11)
+      # Ver comentario equivalente no job api-deploy-container (T11)
       - name: Recria nginx e alloy (bind mount de arquivo unico nao atualiza com reload/restart)
         run: |
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
