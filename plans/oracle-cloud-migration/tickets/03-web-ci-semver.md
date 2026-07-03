@@ -27,10 +27,10 @@ Nenhuma — pode continuar/terminar imediatamente.
 - [x] Job só falha o merge se algum desses passos falhar
 - [x] Step de tag SemVer automática (`mathieudutour/github-tag-action`, `default_bump: patch`) ao detectar push em `production`
 - [x] MAJOR/MINOR continuam manuais
-- [x] Step de `repository_dispatch` pro `oikos-circular-environment/devops`, `event_type: web-production`, payload `{version, sha}`
+- [x] Step de `repository_dispatch` pro `oikos-circular-environment/devops`, `event_type: web-production`, payload `{version, sha}` — [PR #13](https://github.com/oikos-circular-environment/web/pull/13) adiciona `-f`/`--fail` no `curl`; sem isso, uma resposta HTTP de erro do GitHub (ex: 401 por secret ausente) não falhava o step, mascarando o problema
 - [ ] Criar PAT fine-grained **próprio** (não compartilhado com o do `api`), escopado só pro repo `devops` (feito pelo usuário)
 - [ ] Cadastrar o PAT como secret `DEVOPS_DISPATCH_PAT` no repo `web` (usuário cadastra o valor)
-- [ ] Validar workflow rodando de verdade num PR de teste
+- [ ] Validar workflow rodando de verdade num PR de teste — **confirmado que ainda falta**: um merge real em `production` (PR #12, 2026-07-03) rodou o step, mas o `curl` recebeu 401 (secret nunca cadastrado) e o deploy nunca disparou no `devops` — passou despercebido até o `curl -f` acima ser adicionado
 
 ## Definição de Pronto
 

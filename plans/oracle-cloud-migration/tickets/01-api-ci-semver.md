@@ -1,6 +1,6 @@
 # T1 — `api`: CI + Versionamento
 
-**Status**: Em andamento (dev/simulation profiles + scripts npm já feitos)
+**Status**: Em andamento (dev/simulation profiles + scripts npm já feitos). **Achado 2026-07-03**: o repo `api` ainda não tem branch `production` — o step de tag SemVer/dispatch (`if: github.ref == 'refs/heads/production'`) nunca rodou de verdade, nem uma vez.
 **Repositório**: `oikos-circular-environment/api`
 
 ## Escopo
@@ -35,7 +35,7 @@ Nenhuma — pode começar imediatamente.
 - [x] Job só falha o merge se algum desses passos falhar (gate de qualidade — `needs:` encadeado)
 - [x] Step de tag SemVer automática (`mathieudutour/github-tag-action`, `default_bump: patch`) ao detectar push em `production`
 - [x] MAJOR/MINOR continuam manuais (não automatizado — `default_bump: patch` sempre)
-- [x] Step de `repository_dispatch` pro `oikos-circular-environment/devops`, `event_type: api-production`, payload `{version, sha}`
+- [x] Step de `repository_dispatch` pro `oikos-circular-environment/devops`, `event_type: api-production`, payload `{version, sha}` — [PR #34](https://github.com/oikos-circular-environment/api/pull/34) adiciona `-f`/`--fail` no `curl`; sem isso, uma resposta HTTP de erro do GitHub (ex: 401 por secret ausente) não falhava o step, mascarando o problema (achado ao investigar o mesmo bug real no `web`, ver T3)
 - [ ] Criar PAT fine-grained escopado só pro repo `devops`, permissão mínima pra disparar dispatch (feito pelo usuário, fora da sessão do assistente — `gh` CLI não cria PAT fine-grained, só a UI)
 - [ ] Cadastrar o PAT como secret `DEVOPS_DISPATCH_PAT` no repo `api` (usuário cadastra o valor)
 - [ ] Validar workflow rodando de verdade num PR de teste
