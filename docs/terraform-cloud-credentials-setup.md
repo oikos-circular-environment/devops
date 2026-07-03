@@ -2,6 +2,31 @@
 
 Registro do processo usado para levantar as credenciais e a configuração do workspace `oracle-server` (Terraform Cloud), necessárias pela ticket [`04-terraform-vms-rede.md`](../plans/oracle-cloud-migration/tickets/04-terraform-vms-rede.md). Cobre o que foi instalado, os comandos rodados e onde cada dado acabou armazenado — não repete valores sensíveis, só o processo pra reproduzir ou auditar depois.
 
+## Visão geral — todas as credenciais e variáveis do projeto
+
+Tabela de referência rápida com **tudo** que este documento cobre. Duas categorias, pela coluna "Como gerar / obter":
+- **Gerado localmente**: um comando de terminal resolve (`openssl`, etc.) — não depende de acessar nenhuma plataforma externa.
+- **Obtido via plataforma específica**: precisa logar no console/dashboard do serviço (OCI, Cloudflare, GitHub) ou usar a CLI/API dele — não dá pra improvisar com um comando genérico.
+
+| Variável | Descrição | Como gerar / obter |
+|---|---|---|
+| OCI session token | Autenticação temporária (TTL curto) da OCI CLI local | **Plataforma (OCI)** — `oci session authenticate --profile-name <nome> --region <regiao>`, abre o navegador (§1) |
+| `tenancy_ocid` | Identificador da tenancy OCI | **Plataforma (OCI CLI)** — `oci iam tenancy get --tenancy-id <tenancy> --auth security_token` (§2) |
+| `user_ocid` | Identificador do usuário OCI | **Plataforma (OCI CLI)** — `oci iam user list --auth security_token` (§2) |
+| `region` (OCI) | Região onde os recursos são criados | **Plataforma** — já fica salvo em `~/.oci/config` depois do `session authenticate` (§2) |
+| `fingerprint` + `private_key` (API Key OCI) | Par de chaves estático usado pelo provider Terraform `oci` (autenticação sem sessão interativa, necessária pra execução remota no Terraform Cloud) | **Gerado localmente** — `openssl genrsa` + `openssl rsa -pubout` (nunca `oci setup keys --passphrase`, tem bug, ver §3); a chave pública depois precisa ser **enviada à plataforma** via `oci iam user api-key upload` |
+| `cloudflare_account_id` | ID da conta Cloudflare | **Plataforma (Cloudflare)** — dashboard, Account Home (§4) |
+| `cloudflare_api_token` | Token de API da Cloudflare usado pelo provider Terraform `cloudflare` | **Plataforma (Cloudflare)** — dashboard → Account API Tokens; não existe forma de gerar isso via CLI/comando (§4) |
+| `VM_HOST` | IP público da VM `A1.Flex` | **Plataforma (Terraform)** — `terraform output -raw app_public_ip`, depois de aplicado o T4 (§9.1) |
+| `OBSERVABILITY_PRIVATE_IP` | IP privado da VM `E2.1.Micro` | **Plataforma (Terraform)** — `terraform output -raw observability_private_ip` (§9.1) |
+| `SSH_DEPLOY_KEY` | Chave privada SSH do usuário `deploy` das VMs | **Gerado localmente** — par de chaves dedicado criado no T4 (pública versionada em `infra/terraform/compute/files/deploy_id.pub`, privada nunca commitada) |
+| `GHCR_PAT` | Token pra login/push no GitHub Container Registry | **Plataforma (GitHub)** — `github.com/settings/tokens`, classic, escopo `write:packages` (§9.2) |
+| `SOURCE_REPO_PAT` | Token pra checkout cross-repo do código-fonte (`api`/`web`) no `deploy.yml` | **Plataforma (GitHub)** — `github.com/settings/tokens?type=beta`, fine-grained, `Contents: Read-only` (§9.3) |
+| `CLOUDFLARE_ORIGIN_CERT` / `CLOUDFLARE_ORIGIN_KEY` | Certificado/chave Origin CA usados pelo `nginx` em produção | **Plataforma (Terraform)** — `terraform output -raw origin_certificate_pem`/`origin_private_key_pem`; o certificado em si é assinado pela Cloudflare, mas todo o processo (CSR, chave) roda dentro do próprio Terraform via provider `tls` (T5) |
+| `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `MINIO_SECRET_KEY`, `JWT_SECRET`, `ADMIN_PASSWORD` | Senhas/segredos fortes dos serviços da stack de produção | **Gerado localmente** — `openssl rand -base64 <N> \| tr -d '/+=' \| head -c <tamanho>` (§9.4) |
+| `MINIO_ACCESS_KEY` | Usuário/chave de acesso do MinIO (login do console) | **Gerado localmente** — `openssl rand -hex 10` (§9.4) |
+| `POSTGRES_USER`, `ADMIN_USERNAME` | Nomes de usuário (não são segredo, não precisam ser aleatórios) | **Escolhido manualmente** — valores fixos (ex. `oikos`, `admin`) |
+
 ## Ferramentas usadas
 
 | Ferramenta | Onde | Instalação |
