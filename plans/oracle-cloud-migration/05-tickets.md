@@ -35,16 +35,16 @@ T2 (mobile) é independente de tudo — pode rodar em paralelo com qualquer outr
 
 | # | Título | Status | Dependências |
 |---|---|---|---|
-| [T1](./tickets/01-api-ci-semver.md) | `api` — CI + Versionamento | `ci.yml` escrito, prod artifacts removidos, falta PAT/secret + validar | — |
-| [T2](./tickets/02-mobile-ci-semver.md) | `mobile` — CI + Versionamento | `ci.yml` escrito, falta validar | — |
-| [T3](./tickets/03-web-ci-semver.md) | `web` — CI + Versionamento | `ci.yml` escrito, falta PAT/secret (test runner adiado) | — |
+| [T1](./tickets/01-api-ci-semver.md) | `api` — CI + Versionamento | Em andamento — dev/simulation profiles + scripts npm feitos, falta PAT/secret + validar | — |
+| [T2](./tickets/02-mobile-ci-semver.md) | `mobile` — CI + Versionamento | Em andamento — `ci.yml` escrito, falta validar rodando | — |
+| [T3](./tickets/03-web-ci-semver.md) | `web` — CI + Versionamento | Em andamento — `next.config.ts` ajustado, falta PAT/secret (test runner adiado) | — |
 | [T4](./tickets/04-terraform-vms-rede.md) | `devops` — Terraform: VMs + rede | **Pronta.** `apply` rodou, as 2 VMs existem, SSH + Docker confirmados nas duas | — |
 | [T5](./tickets/05-terraform-dns-cloudflare.md) | `devops` — Terraform: DNS Cloudflare | **Pronta.** `apply` rodou, DNS + Origin CA aplicados de verdade | T4 |
-| [T6](./tickets/06-stack-producao.md) | `devops` — Stack de produção | Escrito e validado localmente, falta testar na VM real | T4 |
-| [T7](./tickets/07-observabilidade.md) | `devops` — Observabilidade re-tunada | Não iniciado | T4 |
-| [T8](./tickets/08-backup-automatizado.md) | `devops` — Backup automatizado | Não iniciado | T4 |
-| [T9](./tickets/09-deploy-pipeline.md) | `devops` — Deploy pipeline | Não iniciado | T1, T3, T6, T4 |
-| [T10](./tickets/10-migracao-dados-cutover.md) | `devops` — Migração de dados + cutover | Script e checklist de cutover escritos, execução real deferida pra revisão final | T9, T5, T8 |
+| [T6](./tickets/06-stack-producao.md) | `devops` — Stack de produção | Escrito e validado localmente (builds passam, web testado HTTP 200) — falta testar na VM real | T4 |
+| [T7](./tickets/07-observabilidade.md) | `devops` — Observabilidade re-tunada | Escrito e validado; regras de rede já aplicadas de verdade — falta subir a stack na VM e confirmar no Grafana (ticket 99) | T4 |
+| [T8](./tickets/08-backup-automatizado.md) | `devops` — Backup automatizado | Infra aplicada de verdade (bucket + Lifecycle Policy + Instance Principal) — falta rodar os scripts na VM e testar restore (ticket 99) | T4 |
+| [T9](./tickets/09-deploy-pipeline.md) | `devops` — Deploy pipeline | Escrito e validado (YAML); Environments do GitHub já criados — falta cadastrar secrets e testar `workflow_dispatch` (ticket 99) | T1, T3, T6, T4 |
+| [T10](./tickets/10-migracao-dados-cutover.md) | `devops` — Migração de dados + cutover | Script e checklist de cutover escritos, execução real deferida pra revisão final (ticket 99) | T9, T5, T8 |
 
 ## Refinamento
 
