@@ -1,6 +1,6 @@
 # T8 — `devops`: Backup Automatizado
 
-**Status**: Infra aplicada de verdade (bucket `oikos-backups` + Lifecycle Policy + Instance Principal), na branch `oracle-cloud-migration-review`. Falta rodar os scripts de verdade na VM e testar o restore de ponta a ponta (deferido pra revisão final, ticket 99).
+**Status**: Infra e script do Postgres validados de verdade — `backup-postgres.sh` rodou via `deploy.yml` (T9) e gerou um objeto real no bucket (`postgres/oikos-postgres-20260703-042038.dump.gz`). Falta testar `backup-redis.sh` isoladamente e o restore de ponta a ponta (deferido pra revisão final, ticket 99).
 **Repositório**: `oikos-circular-environment/devops`
 
 ## Escopo

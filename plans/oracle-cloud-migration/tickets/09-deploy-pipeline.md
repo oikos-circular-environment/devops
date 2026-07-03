@@ -1,6 +1,6 @@
 # T9 — `devops`: Deploy Pipeline
 
-**Status**: Escrito e corrigido com base no bootstrap manual real da stack (T6) — 3 bugs achados só ao testar contra a VM de verdade (notas 5-7 abaixo), já corrigidos em `deploy.yml`. Estrutura do GitHub (Environments + variáveis + todos os secrets) 100% cadastrada de verdade. Falta só testar o `workflow_dispatch` de ponta a ponta.
+**Status**: **Pronta.** `workflow_dispatch` real testado de ponta a ponta com sucesso (`service=api`) — build arm64 nativo, backup, migration e deploy do container, tudo funcionando. 4 bugs achados só testando contra a infra de verdade (notas 5-8 abaixo), todos corrigidos.
 
 **Gaps encontrados e resolvidos ao escrever o workflow** (não estavam no desenho original):
 1. **`SOURCE_REPO_PAT` — novo secret, não estava no checklist original.** O `deploy.yml` builda a imagem a partir do código-fonte do `api`/`web`, que vivem em repositórios *separados* do `devops`. O `repository_dispatch` só carrega `{version, sha}` no payload, não o código — o workflow precisa de um `actions/checkout` cross-repo pra pegar o source, e isso exige um PAT com `Contents: read` nos repos `api` e `web` (fine-grained, escopo mínimo). Sem isso o build não tem o que buildar.
@@ -61,6 +61,12 @@ T1, T3 (dispatch precisa existir do lado de origem), T6 (precisa dos compose fil
 - [x] Step: `docker compose pull <serviço> && up -d <serviço>` — targeted, nunca a stack inteira
 - [x] Confirmar que um deploy do `web` nunca reinicia `api`/Postgres/Redis/MinIO e vice-versa — jobs completamente separados, cada um só roda `pull`/`up -d` do seu próprio serviço
 
+## Melhorias futuras (fora do escopo agora — prioridade é validar o pipeline de ponta a ponta primeiro)
+
+- [ ] **Modularizar `api-production`/`web-production` em jobs separados** (`build` → `sync` → `backup` → `migrate` → `deploy-container`, com `needs:` entre eles). Hoje é um job só — se qualquer step falhar (ex: backup), um "Re-run failed jobs" refaz tudo do zero, incluindo o build da imagem (o mais caro em tempo). Com jobs separados, o "Re-run failed jobs" do GitHub Actions só re-executa o job que falhou em diante, reaproveitando o resultado dos jobs já bem-sucedidos (a imagem já publicada no GHCR não precisa ser rebuilada).
+
 ## Definição de Pronto
 
 Disparar `workflow_dispatch` manualmente builda, publica e implanta com sucesso pela primeira vez. Depois disso, um merge de teste em `production` do `api` (ou `web`) dispara o `repository_dispatch` e o deploy acontece automaticamente, de ponta a ponta, sem intervenção manual.
+
+**Confirmado de verdade em 2026-07-03**: `workflow_dispatch` manual (`service=api`) completou com sucesso — build nativo arm64, backup do Postgres, migration, e deploy targeted do container `api`, tudo de ponta a ponta.
