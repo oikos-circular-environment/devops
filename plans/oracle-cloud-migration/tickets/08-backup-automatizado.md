@@ -1,6 +1,6 @@
 # T8 — `devops`: Backup Automatizado
 
-**Status**: Escrito e validado localmente, na branch `feature/t8-backup-automatizado`. Falta rodar de verdade na VM e testar o restore de ponta a ponta (deferido pra revisão final, ticket 99).
+**Status**: Infra e script do Postgres validados de verdade — `backup-postgres.sh` rodou via `deploy.yml` (T9) e gerou um objeto real no bucket (`postgres/oikos-postgres-20260703-042038.dump.gz`). Falta testar `backup-redis.sh` isoladamente e o restore de ponta a ponta (deferido pra revisão final, ticket 99).
 **Repositório**: `oikos-circular-environment/devops`
 
 ## Escopo
@@ -33,7 +33,8 @@ T4 (VM precisa existir; bucket pode ser criado em paralelo já que é um recurso
 - [x] Credenciais de acesso ao Object Storage **sem nenhuma chave estática** — usa **Instance Principal** da OCI (`oci_identity_dynamic_group` + `oci_identity_policy`, escopados só pra VM `A1.Flex` e só pro bucket `oikos-backups`), scripts rodam com `--auth instance_principal`. Mais forte que "secret/variável de ambiente" pedido originalmente — elimina qualquer credencial embutida na VM
 - [x] Runbook de restore documentado em [`docs/backup-restore-runbook.md`](../../../docs/backup-restore-runbook.md)
 - [ ] Restore testado pelo menos uma vez de ponta a ponta — deferido pra revisão final (ticket 99)
-- [ ] Instalar a OCI CLI na `A1.Flex` (pré-requisito manual, uma vez só — decisão consciente de não automatizar dentro do systemd unit que roda todo dia sem supervisão): `curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh | bash -s -- --accept-all-defaults`
+- [x] Instalar a OCI CLI na `A1.Flex` (pré-requisito manual, uma vez só — decisão consciente de não automatizar dentro do systemd unit que roda todo dia sem supervisão): `curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh | bash -s -- --accept-all-defaults`. Instalado pelo usuário via SSH direto (não pelo assistente — execução de script de terceiro em VM de produção via `curl|bash` é bloqueada pelo classificador de segurança do Claude Code sem autorização explícita a cada execução). Autenticação via Instance Principal confirmada funcionando: `oci os object list --bucket-name oikos-backups --auth instance_principal`.
+- [x] **Achado pós-instalação**: o instalador só adiciona `~/bin` ao `PATH` via `~/.bashrc`, que só é carregado em sessões interativas — sessões SSH não-interativas (usadas pelo `deploy.yml` e pelo `systemd` do timer diário) não enxergavam o comando `oci` (`command not found`), mesmo instalado. Corrigido com `ln -sf ~/bin/oci /usr/local/bin/oci` (já está no `PATH` padrão de sessões não-interativas e do `systemd`).
 
 ## Definição de Pronto
 

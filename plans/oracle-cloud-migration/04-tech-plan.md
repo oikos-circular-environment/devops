@@ -26,8 +26,8 @@
 **Exposição pública**: só a `A1.Flex` recebe tráfego externo, só na porta 443. `nginx` roteia por hostname:
 - `api.oikos.company` → `api:3333`
 - `oikos.company` → `web:3000`
-- `grafana.oikos.company` → proxy pra `grafana` na `E2.1.Micro` (via IP privado), atrás de **Cloudflare Access**
-- `minio.oikos.company` → console do MinIO (porta 9001), também atrás de **Cloudflare Access**. A API S3 do MinIO (porta 9000) nunca é exposta — só o container `api` fala com ela internamente (a rota `GET /storage/*` já faz proxy dos arquivos).
+- `grafana.oikos.company` → proxy pra `grafana` na `E2.1.Micro` (via IP privado), protegido pelo login próprio do Grafana
+- `minio.oikos.company` → console do MinIO (porta 9001), protegido pelo login próprio do MinIO. A API S3 do MinIO (porta 9000) nunca é exposta — só o container `api` fala com ela internamente (a rota `GET /storage/*` já faz proxy dos arquivos).
 
 TLS via certificado Cloudflare Origin CA. Security List da OCI libera 443 só pros ranges de IP do Cloudflare (DNS proxied/orange-cloud) — sem Cloudflare Tunnel em produção.
 
@@ -97,7 +97,7 @@ A única estrutura de dados nova é o **artefato de backup** no Oracle Object St
 |---|---|
 | `infra/terraform/compute/` | Novo — VMs `A1.Flex` + `E2.1.Micro`, cloud-init (Docker, usuário `deploy`, swap na `E2.1.Micro`) |
 | `infra/terraform/network/` | Novo — VCN, subnet privada, Security Lists (443 só Cloudflare) |
-| `infra/terraform/dns/` | Novo — registros Cloudflare (`api`, `oikos.company`, `grafana`, `minio`) + políticas Cloudflare Access |
+| `infra/terraform/dns/` | Novo — registros Cloudflare (`api`, `oikos.company`, `grafana`, `minio`) + certificado Origin CA |
 | `infra/terraform/storage/` | Novo — bucket `oikos-backups` + Lifecycle Policy |
 | `infra/terraform/backend.tf` | Novo — aponta pro workspace do Terraform Cloud |
 | `docker/Dockerfile.api.prod` | Migrado do `api`, `CMD` simplificado (ver acima) |

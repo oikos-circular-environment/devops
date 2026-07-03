@@ -45,6 +45,13 @@ services:
           memory: 120M
 
   grafana:
+    # O arquivo base habilita GF_AUTH_ANONYMOUS_ENABLED=true com role Admin
+    # (conveniencia pro dev local) - em producao isso da acesso admin total
+    # sem login pra qualquer um que chegue em grafana.oikos.company. Como o
+    # T5 decidiu proteger o Grafana só pelo login proprio (sem Cloudflare
+    # Access), essa senha forte precisa ser a unica barreira de verdade.
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
     deploy:
       resources:
         limits:

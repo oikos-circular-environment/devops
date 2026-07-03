@@ -8,8 +8,8 @@
 - [ ] `api.oikos.company` serve a API (T6, T10)
 - [ ] Nenhum Cloudflare Tunnel rodando em produção — só DNS proxied + nginx + Origin CA (T5, T6)
 - [ ] Security List da OCI libera 443 só pros ranges de IP do Cloudflare (T4)
-- [ ] `grafana.oikos.company` exposto e protegido por Cloudflare Access (T5, T7)
-- [ ] `minio.oikos.company` (console, porta 9001) exposto e protegido por Cloudflare Access (T5, T6)
+- [ ] `grafana.oikos.company` exposto e protegido pelo login próprio do Grafana, com senha forte (T5, T7)
+- [ ] `minio.oikos.company` (console, porta 9001) exposto e protegido pelo login próprio do MinIO, com senha forte (T5, T6)
 - [ ] API S3 do MinIO (porta 9000) **não** é alcançável pela internet — só via rede interna do Docker (T6)
 - [ ] Túnel Cloudflare manual antigo desativado na máquina de desenvolvimento (T10)
 

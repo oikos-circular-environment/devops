@@ -131,7 +131,7 @@ resource "oci_core_security_list" "this" {
   ingress_security_rules {
     protocol    = "6"
     source      = "10.0.1.0/24"
-    description = "Grafana UI (nginx da A1.Flex -> E2.1.Micro, atras de Cloudflare Access)"
+    description = "Grafana UI (nginx da A1.Flex -> E2.1.Micro, protegido pelo login proprio do Grafana)"
 
     tcp_options {
       min = 3000

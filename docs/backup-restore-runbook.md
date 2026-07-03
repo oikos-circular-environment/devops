@@ -24,34 +24,34 @@ oci os object list --bucket-name oikos-backups --prefix redis/ --auth instance_p
 2. **Parar a `api`** (evita escrita concorrente durante o restore):
    ```bash
    cd /opt/oikos/docker
-   docker compose -f docker-compose.prod.yml stop api
+   docker compose --env-file .env.prod -f docker-compose.prod.yml stop api
    ```
 3. Restaurar num banco de teste primeiro (nunca direto em cima do banco de produção sem validar):
    ```bash
-   docker compose -f docker-compose.prod.yml exec -T postgresql \
+   docker compose --env-file .env.prod -f docker-compose.prod.yml exec -T postgresql \
      createdb -U "$POSTGRES_USER" oikos_restore_test
-   docker compose -f docker-compose.prod.yml exec -T postgresql \
+   docker compose --env-file .env.prod -f docker-compose.prod.yml exec -T postgresql \
      pg_restore -U "$POSTGRES_USER" -d oikos_restore_test < /tmp/restore.dump
    ```
 4. Validar os dados no banco de teste (contagem de linhas nas tabelas principais, spot-check de registros recentes).
 5. Só depois de validado, restaurar de fato (substitui o banco de produção):
    ```bash
-   docker compose -f docker-compose.prod.yml exec -T postgresql \
+   docker compose --env-file .env.prod -f docker-compose.prod.yml exec -T postgresql \
      dropdb -U "$POSTGRES_USER" "$POSTGRES_DB"
-   docker compose -f docker-compose.prod.yml exec -T postgresql \
+   docker compose --env-file .env.prod -f docker-compose.prod.yml exec -T postgresql \
      createdb -U "$POSTGRES_USER" "$POSTGRES_DB"
-   docker compose -f docker-compose.prod.yml exec -T postgresql \
+   docker compose --env-file .env.prod -f docker-compose.prod.yml exec -T postgresql \
      pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" < /tmp/restore.dump
    ```
 6. Rodar `prisma migrate deploy` (garante que o schema restaurado bate com a versão do código em produção):
    ```bash
-   docker compose -f docker-compose.prod.yml run --rm api npx prisma migrate deploy
+   docker compose --env-file .env.prod -f docker-compose.prod.yml run --rm api npx prisma migrate deploy
    ```
 7. Religar a `api`:
    ```bash
-   docker compose -f docker-compose.prod.yml start api
+   docker compose --env-file .env.prod -f docker-compose.prod.yml start api
    ```
-8. Limpar o banco de teste: `docker compose -f docker-compose.prod.yml exec -T postgresql dropdb -U "$POSTGRES_USER" oikos_restore_test`
+8. Limpar o banco de teste: `docker compose --env-file .env.prod -f docker-compose.prod.yml exec -T postgresql dropdb -U "$POSTGRES_USER" oikos_restore_test`
 
 ## Restore do Redis
 
@@ -66,15 +66,15 @@ Redis é fila de jobs — perder o estado é tolerável (jobs são reenfileirado
 2. Parar o Redis:
    ```bash
    cd /opt/oikos/docker
-   docker compose -f docker-compose.prod.yml stop redis
+   docker compose --env-file .env.prod -f docker-compose.prod.yml stop redis
    ```
 3. Copiar o RDB pro volume do container e subir de novo (Redis carrega o RDB automaticamente no boot):
    ```bash
-   docker cp /tmp/restore.rdb "$(docker compose -f docker-compose.prod.yml ps -q redis 2>/dev/null || echo redis_temp)":/bitnami/redis/data/dump.rdb
-   docker compose -f docker-compose.prod.yml start redis
+   docker cp /tmp/restore.rdb "$(docker compose --env-file .env.prod -f docker-compose.prod.yml ps -q redis 2>/dev/null || echo redis_temp)":/bitnami/redis/data/dump.rdb
+   docker compose --env-file .env.prod -f docker-compose.prod.yml start redis
    ```
    Se o container não existir ainda (`ps -q` vazio), copiar o arquivo direto no volume nomeado (`redis_data`) antes do primeiro `up`.
-4. Validar: `docker compose -f docker-compose.prod.yml exec redis redis-cli -a "$REDIS_PASSWORD" --no-auth-warning DBSIZE` (compara com o tamanho esperado).
+4. Validar: `docker compose --env-file .env.prod -f docker-compose.prod.yml exec redis redis-cli -a "$REDIS_PASSWORD" --no-auth-warning DBSIZE` (compara com o tamanho esperado).
 
 ## Status
 

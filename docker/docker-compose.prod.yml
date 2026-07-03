@@ -135,7 +135,10 @@ services:
       createbuckets:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3333/health"]
+      # 127.0.0.1 explicito, nao "localhost" - dentro do container "localhost" resolve
+      # pra ::1 (IPv6) primeiro, e o Fastify so escuta em IPv4 (0.0.0.0), causando
+      # falso-negativo de "connection refused" no healthcheck (achado no bootstrap real, T6)
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3333/health"]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -180,6 +183,12 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /sys:/sys:ro
       - /var/lib/docker:/var/lib/docker:ro
+      # Sem isso, a factory de deteccao de container Docker do cAdvisor falha
+      # (Docker usa containerd por baixo) e ele so enxerga cgroups agregados
+      # (systemd/raw), sem nenhuma metrica por container - achado no
+      # bootstrap real (T7): container_memory_usage_bytes existia, mas sem
+      # nenhum label de container (nem "name", nem "container_label_*").
+      - /run/containerd/containerd.sock:/run/containerd/containerd.sock:ro
     deploy:
       resources:
         limits:

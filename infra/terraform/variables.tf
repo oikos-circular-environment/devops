@@ -30,13 +30,13 @@ variable "region" {
 
 variable "cloudflare_api_token" {
   type        = string
-  description = "Account API Token da Cloudflare. Usado na Security List (T4, ler IP ranges) e no modulo dns (T5, registros/Access/certificado)"
+  description = "Account API Token da Cloudflare. Usado na Security List (T4, ler IP ranges) e no modulo dns (T5, registros DNS/certificado)"
   sensitive   = true
 }
 
 variable "cloudflare_account_id" {
   type        = string
-  description = "Account ID da Cloudflare. Usado pelo modulo dns (T5) pra localizar a zona e criar as aplicacoes de Access"
+  description = "Account ID da Cloudflare. Usado pelo modulo dns (T5) pra localizar a zona"
   sensitive   = true
 }
 
