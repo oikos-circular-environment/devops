@@ -35,9 +35,9 @@ T2 (mobile) é independente de tudo — pode rodar em paralelo com qualquer outr
 
 | # | Título | Status | Dependências |
 |---|---|---|---|
-| [T1](./tickets/01-api-ci-semver.md) | `api` — CI + Versionamento | Em andamento — dev/simulation profiles + scripts npm feitos, falta PAT/secret + validar | — |
+| [T1](./tickets/01-api-ci-semver.md) | `api` — CI + Versionamento | **Pronta.** Deploy automático validado de ponta a ponta, rodando `v0.0.2` em produção | — |
 | [T2](./tickets/02-mobile-ci-semver.md) | `mobile` — CI + Versionamento | Em andamento — `ci.yml` escrito, falta validar rodando | — |
-| [T3](./tickets/03-web-ci-semver.md) | `web` — CI + Versionamento | Em andamento — `next.config.ts` ajustado, falta PAT/secret (test runner adiado) | — |
+| [T3](./tickets/03-web-ci-semver.md) | `web` — CI + Versionamento | **Pronta.** Deploy automático validado de ponta a ponta, rodando `v0.0.3` em produção | — |
 | [T4](./tickets/04-terraform-vms-rede.md) | `devops` — Terraform: VMs + rede | **Pronta.** `apply` rodou, as 2 VMs existem, SSH + Docker confirmados nas duas | — |
 | [T5](./tickets/05-terraform-dns-cloudflare.md) | `devops` — Terraform: DNS Cloudflare | **Pronta.** `apply` rodou, DNS + Origin CA aplicados de verdade | T4 |
 | [T6](./tickets/06-stack-producao.md) | `devops` — Stack de produção | **Pronta.** Stack completa rodando na `A1.Flex`, validada via internet real (`api`/`web`/`minio` respondendo) | T4 |

@@ -1,6 +1,6 @@
 # T9 — `devops`: Deploy Pipeline
 
-**Status**: **Pronta.** `workflow_dispatch` real testado de ponta a ponta com sucesso (`service=api`) — build arm64 nativo, backup, migration e deploy do container, tudo funcionando. 4 bugs achados só testando contra a infra de verdade (notas 5-8 abaixo), todos corrigidos.
+**Status**: **Pronta.** Fluxo automático completo validado de ponta a ponta pra `api` e `web`: merge em `production` → CI → tag SemVer → `repository_dispatch` → `deploy.yml` builda, publica e implanta sozinho, sem intervenção manual. `api` rodando `v0.0.2`, `web` rodando `v0.0.3` — ambos vieram do pipeline automático real, não de teste manual. 4 bugs achados testando contra a infra de verdade (notas 5-8 abaixo), todos corrigidos.
 
 **Gaps encontrados e resolvidos ao escrever o workflow** (não estavam no desenho original):
 1. **`SOURCE_REPO_PAT` — novo secret, não estava no checklist original.** O `deploy.yml` builda a imagem a partir do código-fonte do `api`/`web`, que vivem em repositórios *separados* do `devops`. O `repository_dispatch` só carrega `{version, sha}` no payload, não o código — o workflow precisa de um `actions/checkout` cross-repo pra pegar o source, e isso exige um PAT com `Contents: read` nos repos `api` e `web` (fine-grained, escopo mínimo). Sem isso o build não tem o que buildar.
@@ -69,4 +69,8 @@ T1, T3 (dispatch precisa existir do lado de origem), T6 (precisa dos compose fil
 
 Disparar `workflow_dispatch` manualmente builda, publica e implanta com sucesso pela primeira vez. Depois disso, um merge de teste em `production` do `api` (ou `web`) dispara o `repository_dispatch` e o deploy acontece automaticamente, de ponta a ponta, sem intervenção manual.
 
-**Confirmado de verdade em 2026-07-03**: `workflow_dispatch` manual (`service=api`) completou com sucesso — build nativo arm64, backup do Postgres, migration, e deploy targeted do container `api`, tudo de ponta a ponta.
+**Confirmado de verdade em 2026-07-03**: `workflow_dispatch` manual (`service=api`) completou com sucesso — build nativo arm64, backup do Postgres, migration, e deploy targeted do container `api`, tudo de ponta a ponta. Depois disso, o fluxo **automático** também foi validado: merge real em `production` do `web` e do `api` disparou `repository_dispatch` → `deploy.yml` sozinho, sem `workflow_dispatch` manual. `api` rodando `v0.0.2`, `web` rodando `v0.0.3`.
+
+### Nota 9 — pegadinha na criação do `DEVOPS_DISPATCH_PAT`
+
+Na primeira tentativa, o `repository_dispatch` falhou com 403/404 mesmo com o secret cadastrado. Causa: ao criar o fine-grained token, é fácil confundir **qual repositório selecionar** — o token *mora* no repo `api`/`web` (é lá que vira secret), mas precisa dar acesso *ao repositório* `devops` (é pra lá que ele escreve o evento). Selecionar `api`/`web` como "Repository access" (em vez de `devops`) dá 404 (token não enxerga o repo alvo). Selecionar `devops` mas deixar a permissão de `Contents` como `Read-only` (em vez de `Read and write`) dá 403 (enxerga o repo, mas não tem permissão de escrever o evento). O passo a passo corrigido está na seção "Guia" dos tickets T1/T3.

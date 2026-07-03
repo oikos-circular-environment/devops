@@ -1,6 +1,6 @@
 # T1 — `api`: CI + Versionamento
 
-**Status**: Em andamento (dev/simulation profiles + scripts npm já feitos). **Achado 2026-07-03**: a branch `production` existe no remoto, mas o último merge nela foi em 2026-06-24 — uma semana **antes** do `ci.yml` existir no repo (adicionado em 2026-07-01). `gh run list --branch production` retorna vazio: o step de tag SemVer/dispatch nunca rodou lá nem uma vez. Precisa de um merge `development` → `production` de verdade pra validar isso (fora do escopo desta sessão, decisão do usuário sobre quando fazer).
+**Status**: **Pronta.** CI completo (lint/unit/integration/e2e) e pipeline de deploy automático validados de ponta a ponta em 2026-07-03 — merge real em `production` disparou tag SemVer + `repository_dispatch` + deploy sozinho, sem intervenção manual (`api` rodando `v0.0.2` em produção).
 **Repositório**: `oikos-circular-environment/api`
 
 ## Escopo
@@ -36,9 +36,9 @@ Nenhuma — pode começar imediatamente.
 - [x] Step de tag SemVer automática (`mathieudutour/github-tag-action`, `default_bump: patch`) ao detectar push em `production`
 - [x] MAJOR/MINOR continuam manuais (não automatizado — `default_bump: patch` sempre)
 - [x] Step de `repository_dispatch` pro `oikos-circular-environment/devops`, `event_type: api-production`, payload `{version, sha}` — [PR #34](https://github.com/oikos-circular-environment/api/pull/34) adiciona `-f`/`--fail` no `curl`; sem isso, uma resposta HTTP de erro do GitHub (ex: 401 por secret ausente) não falhava o step, mascarando o problema (achado ao investigar o mesmo bug real no `web`, ver T3)
-- [ ] Criar PAT fine-grained escopado só pro repo `devops`, permissão mínima pra disparar dispatch (feito pelo usuário, fora da sessão do assistente — `gh` CLI não cria PAT fine-grained, só a UI)
-- [ ] Cadastrar o PAT como secret `DEVOPS_DISPATCH_PAT` no repo `api` (usuário cadastra o valor)
-- [ ] Validar workflow rodando de verdade num PR de teste
+- [x] Criar PAT fine-grained escopado só pro repo `devops`, `Contents: Read and write` (feito pelo usuário) — na primeira tentativa errou o repositório selecionado (apontou pro `api` em vez do `devops`, dando 404) e depois a permissão (`Read-only` em vez de `Read and write`, dando 403); corrigido recriando o token do zero
+- [x] Cadastrar o PAT como secret `DEVOPS_DISPATCH_PAT` no repo `api`
+- [x] Validar workflow rodando de verdade num PR de teste — merge real em `production` (2026-07-03) disparou `repository_dispatch` sozinho, `devops` buildou e implantou `v0.0.2` automaticamente, sem `workflow_dispatch` manual
 - [x] Remover `docker-compose.prod.yml` do repo (migrado pra `devops/docker/docker-compose.prod.yml`, T6 concluída antes desta remoção)
 - [x] Remover `Dockerfile.prod` do repo (migrado pra `devops/docker/Dockerfile.api.prod`, CMD simplificado — migration não roda mais sozinha)
 - [x] Remover `.env.prod.example` do repo (equivalente migrado pra `devops/docker/.env.prod.example`)
