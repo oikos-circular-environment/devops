@@ -1,6 +1,6 @@
 # T1 — `api`: CI + Versionamento
 
-**Status**: Em andamento (dev/simulation profiles + scripts npm já feitos)
+**Status**: Em andamento (dev/simulation profiles + scripts npm já feitos). **Achado 2026-07-03**: a branch `production` existe no remoto, mas o último merge nela foi em 2026-06-24 — uma semana **antes** do `ci.yml` existir no repo (adicionado em 2026-07-01). `gh run list --branch production` retorna vazio: o step de tag SemVer/dispatch nunca rodou lá nem uma vez. Precisa de um merge `development` → `production` de verdade pra validar isso (fora do escopo desta sessão, decisão do usuário sobre quando fazer).
 **Repositório**: `oikos-circular-environment/api`
 
 ## Escopo
@@ -35,7 +35,7 @@ Nenhuma — pode começar imediatamente.
 - [x] Job só falha o merge se algum desses passos falhar (gate de qualidade — `needs:` encadeado)
 - [x] Step de tag SemVer automática (`mathieudutour/github-tag-action`, `default_bump: patch`) ao detectar push em `production`
 - [x] MAJOR/MINOR continuam manuais (não automatizado — `default_bump: patch` sempre)
-- [x] Step de `repository_dispatch` pro `oikos-circular-environment/devops`, `event_type: api-production`, payload `{version, sha}`
+- [x] Step de `repository_dispatch` pro `oikos-circular-environment/devops`, `event_type: api-production`, payload `{version, sha}` — [PR #34](https://github.com/oikos-circular-environment/api/pull/34) adiciona `-f`/`--fail` no `curl`; sem isso, uma resposta HTTP de erro do GitHub (ex: 401 por secret ausente) não falhava o step, mascarando o problema (achado ao investigar o mesmo bug real no `web`, ver T3)
 - [ ] Criar PAT fine-grained escopado só pro repo `devops`, permissão mínima pra disparar dispatch (feito pelo usuário, fora da sessão do assistente — `gh` CLI não cria PAT fine-grained, só a UI)
 - [ ] Cadastrar o PAT como secret `DEVOPS_DISPATCH_PAT` no repo `api` (usuário cadastra o valor)
 - [ ] Validar workflow rodando de verdade num PR de teste
@@ -61,6 +61,11 @@ Um PR de teste, ao ser mergeado em `production`, cria a tag SemVer sozinho e dis
 3. **Repository access**: "Only select repositories" → escolher só **`devops`**
 4. **Permissions** → **Repository permissions** → **Contents**: `Read and write`
 5. **Generate token** → copiar o valor (só aparece uma vez)
-6. No repo **`api`** → **Settings** → **Secrets and variables** → **Actions** → **New repository secret** → nome `DEVOPS_DISPATCH_PAT` → colar o valor
+6. Se a organização exigir aprovação (**Require administrator approval** ligado): ir em **Personal access tokens → Pending requests** nas settings da organização e aprovar
+7. Cadastrar como secret, via CLI (valor nunca passa pelo assistente):
+   ```bash
+   gh secret set DEVOPS_DISPATCH_PAT --repo oikos-circular-environment/api
+   ```
+   ou pela UI: repo **`api`** → **Settings** → **Secrets and variables** → **Actions** → **New repository secret** → nome `DEVOPS_DISPATCH_PAT` → colar o valor
 
 **Importante**: gerar um token **separado** pro `web` (T3) — não reaproveitar este mesmo token nos dois repos, mesmo que a permissão seja idêntica (facilita revogar um sem afetar o outro).

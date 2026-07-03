@@ -2,6 +2,31 @@
 
 Registro do processo usado para levantar as credenciais e a configuração do workspace `oracle-server` (Terraform Cloud), necessárias pela ticket [`04-terraform-vms-rede.md`](../plans/oracle-cloud-migration/tickets/04-terraform-vms-rede.md). Cobre o que foi instalado, os comandos rodados e onde cada dado acabou armazenado — não repete valores sensíveis, só o processo pra reproduzir ou auditar depois.
 
+## Visão geral — todas as credenciais e variáveis do projeto
+
+Tabela de referência rápida com **tudo** que este documento cobre. Duas categorias, pela coluna "Como gerar / obter":
+- **Gerado localmente**: um comando de terminal resolve (`openssl`, etc.) — não depende de acessar nenhuma plataforma externa.
+- **Obtido via plataforma específica**: precisa logar no console/dashboard do serviço (OCI, Cloudflare, GitHub) ou usar a CLI/API dele — não dá pra improvisar com um comando genérico.
+
+| Variável | Descrição | Como gerar / obter |
+|---|---|---|
+| OCI session token | Autenticação temporária (TTL curto) da OCI CLI local | **Plataforma (OCI)** — `oci session authenticate --profile-name <nome> --region <regiao>`, abre o navegador (§1) |
+| `tenancy_ocid` | Identificador da tenancy OCI | **Plataforma (OCI CLI)** — `oci iam tenancy get --tenancy-id <tenancy> --auth security_token` (§2) |
+| `user_ocid` | Identificador do usuário OCI | **Plataforma (OCI CLI)** — `oci iam user list --auth security_token` (§2) |
+| `region` (OCI) | Região onde os recursos são criados | **Plataforma** — já fica salvo em `~/.oci/config` depois do `session authenticate` (§2) |
+| `fingerprint` + `private_key` (API Key OCI) | Par de chaves estático usado pelo provider Terraform `oci` (autenticação sem sessão interativa, necessária pra execução remota no Terraform Cloud) | **Gerado localmente** — `openssl genrsa` + `openssl rsa -pubout` (nunca `oci setup keys --passphrase`, tem bug, ver §3); a chave pública depois precisa ser **enviada à plataforma** via `oci iam user api-key upload` |
+| `cloudflare_account_id` | ID da conta Cloudflare | **Plataforma (Cloudflare)** — dashboard, Account Home (§4) |
+| `cloudflare_api_token` | Token de API da Cloudflare usado pelo provider Terraform `cloudflare` | **Plataforma (Cloudflare)** — dashboard → Account API Tokens; não existe forma de gerar isso via CLI/comando (§4) |
+| `VM_HOST` | IP público da VM `A1.Flex` | **Plataforma (Terraform)** — `terraform output -raw app_public_ip`, depois de aplicado o T4 (§9.1) |
+| `OBSERVABILITY_PRIVATE_IP` | IP privado da VM `E2.1.Micro` | **Plataforma (Terraform)** — `terraform output -raw observability_private_ip` (§9.1) |
+| `SSH_DEPLOY_KEY` | Chave privada SSH do usuário `deploy` das VMs | **Gerado localmente** — par de chaves dedicado criado no T4 (pública versionada em `infra/terraform/compute/files/deploy_id.pub`, privada nunca commitada) |
+| `GHCR_PAT` | Token pra login/push no GitHub Container Registry | **Plataforma (GitHub)** — `github.com/settings/tokens`, classic, escopo `write:packages` (§9.2) |
+| `SOURCE_REPO_PAT` | Token pra checkout cross-repo do código-fonte (`api`/`web`) no `deploy.yml` | **Plataforma (GitHub)** — `github.com/settings/tokens?type=beta`, fine-grained, `Contents: Read-only` (§9.3) |
+| `CLOUDFLARE_ORIGIN_CERT` / `CLOUDFLARE_ORIGIN_KEY` | Certificado/chave Origin CA usados pelo `nginx` em produção | **Plataforma (Terraform)** — `terraform output -raw origin_certificate_pem`/`origin_private_key_pem`; o certificado em si é assinado pela Cloudflare, mas todo o processo (CSR, chave) roda dentro do próprio Terraform via provider `tls` (T5) |
+| `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `MINIO_SECRET_KEY`, `JWT_SECRET`, `ADMIN_PASSWORD` | Senhas/segredos fortes dos serviços da stack de produção | **Gerado localmente** — `openssl rand -base64 <N> \| tr -d '/+=' \| head -c <tamanho>` (§9.4) |
+| `MINIO_ACCESS_KEY` | Usuário/chave de acesso do MinIO (login do console) | **Gerado localmente** — `openssl rand -hex 10` (§9.4) |
+| `POSTGRES_USER`, `ADMIN_USERNAME` | Nomes de usuário (não são segredo, não precisam ser aleatórios) | **Escolhido manualmente** — valores fixos (ex. `oikos`, `admin`) |
+
 ## Ferramentas usadas
 
 | Ferramenta | Onde | Instalação |
@@ -84,8 +109,10 @@ Diferente da OCI, o token da Cloudflare **não dá pra gerar via CLI/API do zero
 
 - **Account API Tokens** (não "My Profile → API Tokens" — Cloudflare recomenda token de conta, não atrelado a usuário, pra automação/CI)
 - Custom token com duas policies:
-  - **Account → Entire Account → Access: Apps and Policies → Edit** (aparece na UI só como "Access", dentro da categoria "Cloudflare One / Zero Trust" — é o nome curto do mesmo grupo de permissão)
   - **Zone → (domínio do projeto) → DNS → Edit** (não confundir com "Zone DNS Settings", que é outra permissão — essa aqui é a que permite criar/editar registros, incluindo subdomínios, já que um subdomínio é só um registro dentro da mesma zona)
+  - **Zone → (domínio do projeto) → SSL and Certificates → Edit** (necessária pro recurso `cloudflare_origin_ca_certificate` — sem essa permissão o `apply` falha com 401 "User is not authorized to perform this action")
+
+Cloudflare Access/Zero Trust foi avaliado e descartado do escopo (T5, decisão de 2026-07-02) — não precisa da policy `Access: Apps and Policies`.
 
 ## 5. Terraform Cloud — organização e workspace
 
@@ -173,9 +200,110 @@ ensure that the VCS remains the single source of truth.
 
 `terraform plan` local funciona (gera um plano especulativo, só pra preview — não pode virar `apply`). Pra workspaces VCS-driven, todo `apply` real tem que vir do pipeline: push pra `production` (aprovação manual na UI) ou, quando o auto-trigger falha (ver problema recorrente acima), disparo manual via API reaproveitando uma `configuration-version` já ingerida do branch `production`.
 
+## 9. GitHub — Secrets e Variables do Deploy Pipeline (T9)
+
+Processo pra levantar do zero todas as credenciais que o `.github/workflows/deploy.yml` usa. Cobre onde cada valor é gerado, com qual escopo exato, e como cadastrar — o suficiente pra alguém replicar sem ter acompanhado o resto da conversa.
+
+### 9.1 Mapa completo (o que precisa existir e onde)
+
+| Nome | Tipo | Escopo | Onde é gerado |
+|---|---|---|---|
+| `VM_HOST` | Variable | Repositório (`devops`) | `terraform output -raw app_public_ip` (IP público da `A1.Flex`, T4) |
+| `OBSERVABILITY_PRIVATE_IP` | Variable | Repositório (`devops`) | `terraform output -raw observability_private_ip` (IP privado da `E2.1.Micro`, T4) |
+| `SSH_DEPLOY_KEY` | Secret | Repositório (`devops`) | Chave SSH privada do usuário `deploy` das VMs — o mesmo par de chaves criado no T4 (a pública vai em `infra/terraform/compute/files/deploy_id.pub`, versionada; a privada nunca é commitada) |
+| `GHCR_PAT` | Secret | Repositório (`devops`) | PAT **classic**, escopo `write:packages` — ver 9.2 |
+| `SOURCE_REPO_PAT` | Secret | Repositório (`devops`) | PAT **fine-grained**, `Contents: Read-only` nos repos `api` e `web` — ver 9.3 |
+| `CLOUDFLARE_ORIGIN_CERT` | Secret | Repositório (`devops`) | `terraform output -raw origin_certificate_pem` (T5) |
+| `CLOUDFLARE_ORIGIN_KEY` | Secret | Repositório (`devops`) | `terraform output -raw origin_private_key_pem` (T5) |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD` | Secret | Environment `api-production` | Gerado com `openssl rand` no bootstrap (ver 9.4) |
+| `REDIS_PASSWORD` | Secret | Environment `api-production` | Gerado com `openssl rand` |
+| `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY` | Secret | Environment `api-production` | Gerado com `openssl rand` — também é a credencial de login do console MinIO |
+| `JWT_SECRET` | Secret | Environment `api-production` | Gerado com `openssl rand` |
+| `ADMIN_USERNAME`, `ADMIN_PASSWORD` | Secret | Environment `api-production` | `ADMIN_USERNAME` fixo (`admin`), `ADMIN_PASSWORD` gerado com `openssl rand` |
+
+Variables ficam visíveis em texto plano na UI (não são segredo — são só configuração, tipo IP e hostname). Secrets nunca reaparecem depois de criados, nem pra quem tem acesso de admin ao repo.
+
+### 9.2 Gerar o `GHCR_PAT` (classic token)
+
+O `deploy.yml` builda a imagem `api`/`web` **e** dá `push` pro GHCR na mesma execução — por isso precisa de `write:packages` (não só `read:packages`, que bastaria se fosse só `pull`).
+
+1. `github.com/settings/tokens` → **Generate new token** → **Generate new token (classic)**
+2. Note: algo identificável, ex. `oikos-devops-ghcr`
+3. Expiration: sem expiração curta — token de automação, não de uso pessoal (ex. "No expiration" ou o máximo disponível)
+4. Marcar só o escopo **`write:packages`** (isso já cobre leitura também)
+5. **Generate token** e copiar o valor na hora (não é possível ver de novo depois)
+
+### 9.3 Gerar o `SOURCE_REPO_PAT` (fine-grained token)
+
+O `deploy.yml` faz checkout cross-repo do código-fonte do `api`/`web` (pra buildar a imagem a partir do SHA recebido via `repository_dispatch`) — precisa só de leitura de conteúdo, então fine-grained com escopo mínimo é o ideal aqui (ao contrário do GHCR, que não tem suporte completo a fine-grained — ver comparação abaixo).
+
+1. `github.com/settings/tokens?type=beta` → **Generate new token**
+2. **Resource owner**: trocar do valor padrão (sua conta pessoal) pra `oikos-circular-environment` — **os repositórios da organização só aparecem na lista depois dessa troca**, é o passo que mais confunde
+3. **Repository access** → **Only select repositories** → marcar `api` e `web`
+4. **Repository permissions** → **Contents**: `Read-only`
+5. Expiration: máximo permitido (as fine-grained sempre expiram, entre 1 e 366 dias — vai precisar renovar quando vencer)
+6. **Generate token** e copiar o valor
+
+**Pré-requisito organizacional**: em `github.com/organizations/<org>/settings/personal-access-tokens`, a aba **Fine-grained tokens** precisa estar com **"Allow access via fine-grained personal access tokens"** selecionado (é o padrão, mas orgs mais restritas podem ter mudado pra "Restrict access"). Se também estiver marcado **"Require administrator approval"**, o token fica criado mas **inativo** até um admin da organização aprovar — depois de gerar, ir em **Personal access tokens → Pending requests** (na sidebar das settings da organização) e aprovar.
+
+**Alternativa mais simples** (se a política de aprovação da organização for fricção demais pro tamanho do projeto): usar um classic token também pro `SOURCE_REPO_PAT`, escopo `repo` (dá acesso de leitura/escrita a todos os repos privados que o usuário acessa — mais amplo que o necessário, mas sem a etapa de aprovação da organização).
+
+**Classic vs. fine-grained, rápido**: fine-grained permite restringir por repositório específico e por permissão granular (Contents, Issues, etc.), mas **não tem suporte completo a GitHub Packages** — por isso o `GHCR_PAT` acima precisa ser classic mesmo. Fine-grained também exige expiração obrigatória; classic pode ser "sem expiração".
+
+### 9.4 Gerar os secrets da Environment `api-production`
+
+Esses valores foram gerados durante o bootstrap manual da stack na `A1.Flex` (T6), com `openssl rand`, e já estão validados rodando em produção de verdade — não é preciso gerar de novo, só reaproveitar:
+
+```bash
+POSTGRES_PASSWORD=$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)
+REDIS_PASSWORD=$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)
+MINIO_ACCESS_KEY=$(openssl rand -hex 10)
+MINIO_SECRET_KEY=$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)
+JWT_SECRET=$(openssl rand -base64 48 | tr -d '/+=' | head -c 48)
+ADMIN_PASSWORD=$(openssl rand -base64 24 | tr -d '/+=' | head -c 24)
+```
+
+Os valores reais ficam só no arquivo local `docker/.env.prod` (gitignored, nunca commitado) e dentro do `.env.prod` que está de fato na VM (`/opt/oikos/docker/.env.prod`) — é de lá que se copia pra cadastrar os secrets, não se gera um valor novo (se gerar novo, precisa atualizar a VM também pra não dessincronizar).
+
+### 9.5 Cadastrando via `gh` CLI
+
+Depois de ter os valores em mãos, o cadastro em si (repo-level e nas duas categorias, secret vs. variable):
+
+```bash
+# Variables (repo-level, não sensível)
+gh variable set VM_HOST --repo oikos-circular-environment/devops --body "<ip-publico-a1flex>"
+gh variable set OBSERVABILITY_PRIVATE_IP --repo oikos-circular-environment/devops --body "<ip-privado-e2micro>"
+
+# Secrets de repositório (lendo de arquivo, evita passar segredo como argumento de shell)
+gh secret set SSH_DEPLOY_KEY --repo oikos-circular-environment/devops < caminho/da/chave_privada
+gh secret set GHCR_PAT --repo oikos-circular-environment/devops        # cola o valor quando pedir
+gh secret set SOURCE_REPO_PAT --repo oikos-circular-environment/devops
+terraform output -raw origin_certificate_pem | gh secret set CLOUDFLARE_ORIGIN_CERT --repo oikos-circular-environment/devops
+terraform output -raw origin_private_key_pem | gh secret set CLOUDFLARE_ORIGIN_KEY --repo oikos-circular-environment/devops
+
+# Secrets de Environment (--env em vez de escopo repo)
+gh secret set POSTGRES_USER --repo oikos-circular-environment/devops --env api-production
+# repetir pra POSTGRES_PASSWORD, REDIS_PASSWORD, MINIO_ACCESS_KEY, MINIO_SECRET_KEY,
+# JWT_SECRET, ADMIN_USERNAME, ADMIN_PASSWORD
+```
+
+Conferir sem expor valores (`gh secret/variable list` só mostra nomes e data de atualização, nunca o conteúdo):
+
+```bash
+gh secret list --repo oikos-circular-environment/devops
+gh secret list --repo oikos-circular-environment/devops --env api-production
+gh variable list --repo oikos-circular-environment/devops
+```
+
+### 9.6 Environments no GitHub
+
+`api-production` e `web-production` precisam existir como Environments do repositório (`devops` → Settings → Environments → New environment) antes de conseguir cadastrar secrets dentro delas — sem `protection_rules` configuradas (sem gate de aprovação manual pra esse projeto, decisão consciente pra não travar o deploy automático via `repository_dispatch`).
+
 ## Referências
 
 - [Install Terraform / OCI CLI (tutorial HashiCorp)](https://developer.hashicorp.com/terraform/tutorials/oci-get-started/install-cli)
 - [OCI CLI — instalação (docs Oracle)](https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/cliinstall.htm)
 - [Terraform Cloud — organizações](https://app.terraform.io/app/organizations)
 - [Terraform — documentação geral](https://developer.hashicorp.com/terraform)
+- [GitHub — Managing your personal access tokens](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)
+- [GitHub — Encrypted secrets](https://docs.github.com/en/actions/security-guides/encrypted-secrets)

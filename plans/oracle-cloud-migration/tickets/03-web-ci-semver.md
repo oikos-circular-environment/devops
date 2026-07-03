@@ -27,10 +27,10 @@ Nenhuma — pode continuar/terminar imediatamente.
 - [x] Job só falha o merge se algum desses passos falhar
 - [x] Step de tag SemVer automática (`mathieudutour/github-tag-action`, `default_bump: patch`) ao detectar push em `production`
 - [x] MAJOR/MINOR continuam manuais
-- [x] Step de `repository_dispatch` pro `oikos-circular-environment/devops`, `event_type: web-production`, payload `{version, sha}`
+- [x] Step de `repository_dispatch` pro `oikos-circular-environment/devops`, `event_type: web-production`, payload `{version, sha}` — [PR #13](https://github.com/oikos-circular-environment/web/pull/13) adiciona `-f`/`--fail` no `curl`; sem isso, uma resposta HTTP de erro do GitHub (ex: 401 por secret ausente) não falhava o step, mascarando o problema
 - [ ] Criar PAT fine-grained **próprio** (não compartilhado com o do `api`), escopado só pro repo `devops` (feito pelo usuário)
 - [ ] Cadastrar o PAT como secret `DEVOPS_DISPATCH_PAT` no repo `web` (usuário cadastra o valor)
-- [ ] Validar workflow rodando de verdade num PR de teste
+- [ ] Validar workflow rodando de verdade num PR de teste — **confirmado que ainda falta**: um merge real em `production` (PR #12, 2026-07-03) rodou o step, mas o `curl` recebeu 401 (secret nunca cadastrado) e o deploy nunca disparou no `devops` — passou despercebido até o `curl -f` acima ser adicionado
 
 ## Definição de Pronto
 
@@ -41,7 +41,7 @@ Um PR de teste, ao ser mergeado em `production`, cria a tag SemVer sozinho e dis
 Mesmo procedimento do T1 (`api`) — ver o guia completo lá. Resumo:
 1. GitHub → avatar → **Settings** → **Developer settings** → **Personal access tokens** → **Fine-grained tokens** → **Generate new token**
 2. **Resource owner**: `oikos-circular-environment` · **Repository access**: só **`devops`** · **Permissions** → **Contents**: `Read and write`
-3. **Generate token**, copiar o valor
-4. No repo **`web`** → **Settings** → **Secrets and variables** → **Actions** → **New repository secret** → nome `DEVOPS_DISPATCH_PAT` → colar
+3. **Generate token**, copiar o valor (aprovar em **Pending requests** da organização se necessário)
+4. Cadastrar via CLI: `gh secret set DEVOPS_DISPATCH_PAT --repo oikos-circular-environment/web` (ou pela UI: repo **`web`** → **Settings** → **Secrets and variables** → **Actions** → **New repository secret** → nome `DEVOPS_DISPATCH_PAT` → colar)
 
 **Token separado do `api`** — não reaproveitar o mesmo, mesmo com permissão idêntica.

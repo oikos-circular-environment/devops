@@ -6,7 +6,7 @@ Ordem exata das operações pro corte final, da máquina de desenvolvimento atua
 
 ## Pré-requisitos (antes do dia do corte)
 
-- [ ] **T5 pronta**: DNS resolvendo `api.oikos.company` e `oikos.company` pra VM Oracle, Cloudflare Access funcionando em `grafana`/`minio` — mas **ainda sem tráfego real** (túnel antigo continua sendo a fonte de verdade até o corte)
+- [ ] **T5 pronta**: DNS resolvendo `api.oikos.company` e `oikos.company` pra VM Oracle, login próprio funcionando em `grafana`/`minio` — mas **ainda sem tráfego real** (túnel antigo continua sendo a fonte de verdade até o corte)
 - [ ] **T8 rodando há pelo menos 24h**: confirmar objetos recentes em `postgres/` e `redis/` no bucket `oikos-backups` — rede de segurança antes de qualquer operação destrutiva
 - [ ] **T9 validada**: `workflow_dispatch` manual do `deploy.yml` já rodou com sucesso pelo menos uma vez, stack completa saudável na VM
 - [ ] Testar `scripts/migrate-data.sh minio` uma vez **antes** do dia do corte (mirror incremental, não destrutivo) — aquece o cache e valida que o túnel SSH + `mc` funcionam, sem pressa do corte real
@@ -21,7 +21,7 @@ Ordem exata das operações pro corte final, da máquina de desenvolvimento atua
    - Contagem de linhas nas tabelas principais bate com a origem (`SELECT count(*) FROM <tabela>` nos dois lados)
    - Alguns registros de amostra (os mais recentes) conferidos manualmente
    - Contagem de objetos MinIO bate (`mc ls --recursive oikos-dest/oikos | wc -l` vs. equivalente na origem)
-6. [ ] Confirmar a stack de produção saudável na VM (`docker compose -f docker-compose.prod.yml ps`, todos os serviços `healthy`/`running`)
+6. [ ] Confirmar a stack de produção saudável na VM (`docker compose --env-file .env.prod -f docker-compose.prod.yml ps`, todos os serviços `healthy`/`running`)
 7. [ ] **Cutover de DNS**: nada a fazer aqui de fato — os registros do Cloudflare (T5) já apontam pra VM desde que foram criados; o corte real é desativar o túnel antigo (próximo passo), que é o que estava mascarando o tráfego indo pro destino errado
 8. [ ] Apontar o app mobile pro hostname de produção definitivo (`api.oikos.company`), ou confirmar que já aponta (se já foi configurado assim desde o início)
 9. [ ] **Desativar o túnel Cloudflare manual** na máquina de desenvolvimento (`cloudflared tunnel run --token ...` — matar o processo/serviço)

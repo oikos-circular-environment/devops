@@ -51,10 +51,8 @@ Fonte: [GitHub Packages billing](https://docs.github.com/en/billing/concepts/pro
 ## Cloudflare
 
 - **DNS proxied (orange-cloud) + Origin CA certificate**: parte do plano Free do Cloudflare, sem custo algum, sem limite relevante pro nosso uso.
-- **Cloudflare Access / Zero Trust** (protege `grafana.oikos.company` e `minio.oikos.company`): plano Free cobre **até 50 usuários**, pra sempre, sem cartão de crédito. Usamos 1 usuário (o desenvolvedor). Acima de 50 usuários, vira pay-as-you-go a $7/usuário/mês — não é um risco realista pro perfil deste projeto.
+- `grafana.oikos.company` e `minio.oikos.company` ficam só atrás do DNS proxied — sem Cloudflare Access/Zero Trust (avaliado e descartado como overengineering pro MVP, T5). Protegidos pelo login próprio de cada ferramenta (usuário/senha forte).
 - **Custo atual: $0/mês.**
-
-Fonte: [Cloudflare Zero Trust Free Plan](https://costbench.com/software/business-vpn/cloudflare-zero-trust/free-plan/).
 
 ## Expo EAS (Mobile — Operação)
 
@@ -81,8 +79,8 @@ Fonte: [Expo — Subscriptions, plans, and add-ons](https://docs.expo.dev/billin
 | Terraform Cloud (state) | $0 (enhanced free tier) |
 | Object Storage + Lifecycle Policy (backup) | $0 (~120 req/mês de 50.000 grátis) |
 | GHCR (imagens privadas) | $0 (storage/bandwidth grátis) |
-| Cloudflare (DNS, Access, Origin CA) | $0 (Free plan, 1 de 50 usuários) |
+| Cloudflare (DNS, Origin CA) | $0 (Free plan) |
 | Expo EAS (mobile — build/submit/update) | $0 (Free plan, fora do escopo de deploy do `devops`) |
 | **Total** | **$0/mês** |
 
-Nenhum componente desta arquitetura tem custo hoje. Os pontos de atenção pra reavaliar no futuro: crescimento além de 500 recursos no Terraform Cloud, além de 50 usuários no Cloudflare Access, mudança de política de gratuidade do GHCR (aviso prévio de 1 mês garantido), ou o `mobile` estourar os limites de build/MAU do plano Free do EAS.
+Nenhum componente desta arquitetura tem custo hoje. Os pontos de atenção pra reavaliar no futuro: crescimento além de 500 recursos no Terraform Cloud, mudança de política de gratuidade do GHCR (aviso prévio de 1 mês garantido), ou o `mobile` estourar os limites de build/MAU do plano Free do EAS.

@@ -3,5 +3,8 @@ terraform {
     oci = {
       source = "oracle/oci"
     }
+    time = {
+      source = "hashicorp/time"
+    }
   }
 }
