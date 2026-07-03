@@ -1,6 +1,6 @@
 # T8 — `devops`: Backup Automatizado
 
-**Status**: Escrito e validado localmente, na branch `feature/t8-backup-automatizado`. Falta rodar de verdade na VM e testar o restore de ponta a ponta (deferido pra revisão final, ticket 99).
+**Status**: Infra aplicada de verdade (bucket `oikos-backups` + Lifecycle Policy + Instance Principal), na branch `oracle-cloud-migration-review`. Falta rodar os scripts de verdade na VM e testar o restore de ponta a ponta (deferido pra revisão final, ticket 99).
 **Repositório**: `oikos-circular-environment/devops`
 
 ## Escopo

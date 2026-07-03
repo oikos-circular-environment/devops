@@ -1,6 +1,6 @@
 # T5 — `devops`: Terraform — DNS Cloudflare
 
-**Status**: Em andamento — código do módulo `infra/terraform/dns/` escrito e validado (`fmt`/`init`/`validate`), na branch `oracle-cloud-migration-review`. Falta finalizar o `apply` (Origin CA pendente da permissão do token) e testar resolução DNS no browser.
+**Status**: `apply` rodou com sucesso — os 4 registros DNS e o certificado Origin CA estão aplicados de verdade na Cloudflare, na branch `oracle-cloud-migration-review`. Falta só cadastrar o certificado como secret no repo e testar resolução DNS + login no browser (deferido pra revisão final, ticket 99).
 **Repositório**: `oikos-circular-environment/devops`
 
 ## Escopo
@@ -33,10 +33,10 @@ T4 (precisa do IP público da `A1.Flex`).
 - [x] `infra/terraform/dns/` — registro proxied `minio.oikos.company` → IP público `A1.Flex`
 - [x] Certificado Cloudflare Origin CA gerado — chave privada e CSR gerados via provider `tls` dentro do próprio Terraform, certificado assinado pela Cloudflare (`cloudflare_origin_ca_certificate`)
 - [x] Token da Cloudflare com permissão `Zone → SSL and Certificates → Edit` (necessária pro Origin CA) — cadastrada pelo usuário
-- [ ] Certificado cadastrado como secret no repo `devops` (`CLOUDFLARE_ORIGIN_CERT`/`CLOUDFLARE_ORIGIN_KEY`, usuário cadastra os valores) — pendente até o `apply` completar; valores saem via `terraform output -raw origin_certificate_pem` / `origin_private_key_pem`
-- [ ] `terraform plan`/`apply` revisado e rodado com sucesso
-- [ ] Testar resolução DNS dos 4 hostnames
-- [ ] Confirmar login próprio funcionando em `grafana`/`minio` com credenciais fortes (geradas na T6/T7)
+- [x] `terraform apply` rodado com sucesso — os 4 registros DNS, o certificado Origin CA, a security list (T7) e o bucket/policies de backup (T8) foram todos criados/atualizados de verdade
+- [ ] Certificado cadastrado como secret no repo `devops` (`CLOUDFLARE_ORIGIN_CERT`/`CLOUDFLARE_ORIGIN_KEY`, usuário cadastra os valores) — valores saem via `terraform output -raw origin_certificate_pem` / `origin_private_key_pem`
+- [ ] Testar resolução DNS dos 4 hostnames (deferido pra revisão final, ticket 99)
+- [ ] Confirmar login próprio funcionando em `grafana`/`minio` com credenciais fortes (geradas na T6/T7, deferido pra revisão final, ticket 99)
 
 ## Definição de Pronto
 
