@@ -135,7 +135,10 @@ services:
       createbuckets:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3333/health"]
+      # 127.0.0.1 explicito, nao "localhost" - dentro do container "localhost" resolve
+      # pra ::1 (IPv6) primeiro, e o Fastify so escuta em IPv4 (0.0.0.0), causando
+      # falso-negativo de "connection refused" no healthcheck (achado no bootstrap real, T6)
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3333/health"]
       interval: 15s
       timeout: 5s
       retries: 3
