@@ -34,3 +34,22 @@ module "storage" {
   tenancy_ocid     = var.tenancy_ocid
   app_instance_id  = module.compute.app_instance_id
 }
+
+# Import dos 3 cloudflare_zone_setting novos (module.dns) - import block
+# dentro de modulo filho nao e suportado, precisa ficar na raiz com "to"
+# prefixado pelo caminho do modulo (achado consultando a doc oficial do
+# provider, guia de migracao v4->v5).
+import {
+  to = module.dns.cloudflare_zone_setting.ssl_strict
+  id = "${module.dns.zone_id}/ssl"
+}
+
+import {
+  to = module.dns.cloudflare_zone_setting.min_tls_1_2
+  id = "${module.dns.zone_id}/min_tls_version"
+}
+
+import {
+  to = module.dns.cloudflare_zone_setting.force_https
+  id = "${module.dns.zone_id}/always_use_https"
+}

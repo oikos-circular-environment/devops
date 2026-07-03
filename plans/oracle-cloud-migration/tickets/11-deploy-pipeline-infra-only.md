@@ -16,6 +16,7 @@ O primeiro run real do `infra-production` (disparado por um merge em `production
 - Step adicionado nos **três** jobs (`api-production`, `web-production`, `infra-production`): `docker compose up -d --force-recreate --no-deps nginx alloy`. Fecha o gap onde `nginx.conf`/`alloy-prod.alloy` eram copiados pra VM via `scp` mas nunca chegavam a ser aplicados de verdade (ver achado acima — a primeira tentativa usou `reload`/`restart`, que não resolve por causa do bind mount de arquivo único).
 - `cadvisor`/`node-exporter` não recebem restart — não montam nenhum arquivo de `nginx/` ou `observability/` (confirmado lendo `docker-compose.prod.yml`), só `nginx` (`nginx.conf`) e `alloy` (`alloy-prod.alloy`) dependem desses diretórios.
 - `concurrency.group` mudou de `deploy-${{ action/service }}` (um grupo por serviço) pra um grupo único `deploy-vm` — os três jobs mexem nos mesmos arquivos/containers na mesma VM via SSH, precisam ser serializados entre si, não só contra reexecuções de si mesmos.
+- **Achado depois de fechar o ticket (2026-07-03, no T10)**: `infra-production` só recriava `nginx`/`alloy` — mudanças em `postgresql`/`redis`/`minio`/`createbuckets`/`cadvisor`/`node-exporter` (ex: `cpus`, `environment`) definidas direto no `docker-compose.prod.yml` nunca eram aplicadas sozinhas. Isso foi descoberto na prática: o fix de throttle do Postgres (`cpus` 1.0→1.5) só pegou depois de um `up -d --force-recreate --no-deps postgresql` **manual**. Corrigido com um novo step `up -d --no-deps` (sem `--force-recreate`) pros demais serviços — diferente do bind mount de arquivo único do nginx/alloy, o Compose detecta sozinho mudança de `cpus`/`environment` no próprio arquivo, então não precisa forçar; se nada mudou, o `up -d` é no-op.
 
 ## Fora de escopo
 
@@ -46,6 +47,7 @@ T9 (job existente onde os steps de reload também foram adicionados).
 - [x] Achado e corrigido: reload/restart não atualiza bind mount de arquivo único — trocado por `up -d --force-recreate --no-deps nginx alloy` nos três jobs
 - [x] `concurrency.group` único (`deploy-vm`) serializando os três jobs
 - [x] Validado de ponta a ponta: push em `production` recriou `nginx`/`alloy` de verdade, `www.oikos.company`/`oikos.company` confirmados servindo o Next.js via internet real (2026-07-03)
+- [x] `up -d --no-deps` (sem force) adicionado pro `infra-production` cobrir `postgresql`/`redis`/`minio`/`createbuckets`/`cadvisor`/`node-exporter` — mudança de config direto no compose (não bind mount) passa a se aplicar sozinha, sem precisar de intervenção manual como aconteceu com o fix do throttle do Postgres
 
 ## Definição de Pronto
 
