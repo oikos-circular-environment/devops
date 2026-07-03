@@ -36,11 +36,11 @@ T1, T3 (dispatch precisa existir do lado de origem), T6 (precisa dos compose fil
 - [x] Criar Environment `web-production` no repo `devops` (vazio por enquanto, pronto pra quando o `web` precisar de secrets próprios)
 - [x] Cadastrar `VM_HOST` como Variable (não secret) — `134.65.229.35`
 - [x] Cadastrar `OBSERVABILITY_PRIVATE_IP` como Variable (não secret) — `10.0.2.37` (resolve o placeholder `<IP-PRIVADO-E2.1.MICRO>` do `.env.prod.example`)
-- [ ] Cadastrar secrets de nível repo: `SSH_DEPLOY_KEY` (usuário cadastra)
-- [ ] Cadastrar secrets de nível repo: `GHCR_PAT` (`read:packages`, usuário cadastra)
-- [ ] Cadastrar secrets de nível repo: `SOURCE_REPO_PAT` (fine-grained, `Contents: read` nos repos `api` e `web` — usuário cadastra; **novo, não estava no desenho original**, ver nota acima)
-- [ ] Cadastrar secrets de nível repo: `CLOUDFLARE_ORIGIN_CERT`/`CLOUDFLARE_ORIGIN_KEY` (usuário cadastra, de T5)
-- [ ] Cadastrar secrets do Environment `api-production`: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY`, `JWT_SECRET`, `ADMIN_USERNAME`/`ADMIN_PASSWORD` (usuário cadastra — nomes corrigidos pra bater com `.env.prod.example`; `GOOGLE_ACCOUNT_*`/`APPLE_ACCOUNT_*` removidos do deploy, ver nota 4 acima — seed manual, fora do CI)
+- [x] Cadastrar secrets de nível repo: `SSH_DEPLOY_KEY` — chave real da `A1.Flex`/`E2.1.Micro`
+- [ ] Cadastrar secrets de nível repo: `GHCR_PAT` (`write:packages` — o próprio `deploy.yml` builda e faz push da imagem, não só pull) — precisa ser um PAT novo, dedicado (não o token de sessão do `gh` CLI do usuário)
+- [ ] Cadastrar secrets de nível repo: `SOURCE_REPO_PAT` (fine-grained, `Contents: read` nos repos `api` e `web`) — precisa ser criado do zero, **novo, não estava no desenho original**, ver nota acima
+- [x] Cadastrar secrets de nível repo: `CLOUDFLARE_ORIGIN_CERT`/`CLOUDFLARE_ORIGIN_KEY` — valores reais de T5 (`terraform output -raw origin_certificate_pem`/`origin_private_key_pem`)
+- [x] Cadastrar secrets do Environment `api-production`: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY`, `JWT_SECRET`, `ADMIN_USERNAME`/`ADMIN_PASSWORD` — valores reais já validados em produção no bootstrap do T6 (nomes corrigidos pra bater com `.env.prod.example`; `GOOGLE_ACCOUNT_*`/`APPLE_ACCOUNT_*` removidos do deploy, ver nota 4 acima — seed manual, fora do CI)
 
 **Workflow `.github/workflows/deploy.yml`:**
 - [x] Trigger `repository_dispatch` com `event_type: api-production`
