@@ -1,6 +1,6 @@
 # T5 — `devops`: Terraform — DNS Cloudflare
 
-**Status**: `apply` rodou com sucesso — os 4 registros DNS e o certificado Origin CA estão aplicados de verdade na Cloudflare, na branch `oracle-cloud-migration-review`. Falta só cadastrar o certificado como secret no repo e testar resolução DNS + login no browser (deferido pra revisão final, ticket 99).
+**Status**: **Pronta.** `apply` rodou com sucesso, os 4 hostnames resolvem de verdade via internet real e o login do Grafana foi confirmado. Falta só cadastrar o certificado como secret no repo (T9) e confirmar o login do MinIO especificamente.
 **Repositório**: `oikos-circular-environment/devops`
 
 ## Escopo
@@ -34,9 +34,10 @@ T4 (precisa do IP público da `A1.Flex`).
 - [x] Certificado Cloudflare Origin CA gerado — chave privada e CSR gerados via provider `tls` dentro do próprio Terraform, certificado assinado pela Cloudflare (`cloudflare_origin_ca_certificate`)
 - [x] Token da Cloudflare com permissão `Zone → SSL and Certificates → Edit` (necessária pro Origin CA) — cadastrada pelo usuário
 - [x] `terraform apply` rodado com sucesso — os 4 registros DNS, o certificado Origin CA, a security list (T7) e o bucket/policies de backup (T8) foram todos criados/atualizados de verdade
-- [ ] Certificado cadastrado como secret no repo `devops` (`CLOUDFLARE_ORIGIN_CERT`/`CLOUDFLARE_ORIGIN_KEY`, usuário cadastra os valores) — valores saem via `terraform output -raw origin_certificate_pem` / `origin_private_key_pem`
-- [ ] Testar resolução DNS dos 4 hostnames (deferido pra revisão final, ticket 99)
-- [ ] Confirmar login próprio funcionando em `grafana`/`minio` com credenciais fortes (geradas na T6/T7, deferido pra revisão final, ticket 99)
+- [x] Testar resolução DNS dos 4 hostnames — `api.oikos.company`, `oikos.company`, `minio.oikos.company` (200) e `grafana.oikos.company` (302) confirmados via internet real (Cloudflare)
+- [x] Confirmar login próprio funcionando em `grafana` com credencial forte — autenticação testada via API do Grafana
+- [ ] Confirmar login próprio funcionando em `minio` especificamente (rota testada, mas autenticação em si não foi exercida)
+- [ ] Certificado cadastrado como secret no repo `devops` (`CLOUDFLARE_ORIGIN_CERT`/`CLOUDFLARE_ORIGIN_KEY`, usuário cadastra os valores) — valores saem via `terraform output -raw origin_certificate_pem` / `origin_private_key_pem` (parte do T9)
 
 ## Definição de Pronto
 
