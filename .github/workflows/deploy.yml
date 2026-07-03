@@ -16,9 +16,25 @@ on:
       version:
         description: "Versao (tag SemVer) sendo implantada"
         required: true
+  # T11 - mudanca so de infra (nginx/observability/scripts) nao depende de
+  # release do api/web para chegar na VM. Sem isso, um fix como o do
+  # www.oikos.company (server_name faltando) ficava sem nenhum caminho de
+  # deploy, exceto forcar um workflow_dispatch de api/web sem motivo real
+  # de rebuild.
+  push:
+    branches: [production]
+    paths:
+      - "nginx/**"
+      - "observability/**"
+      - "scripts/**"
+      - "docker/docker-compose.prod.yml"
 
 concurrency:
-  group: deploy-${{ github.event.action || inputs.service }}
+  # Grupo unico (nao mais por acao/servico) - api-production, web-production
+  # e infra-production mexem nos mesmos arquivos/containers na mesma VM,
+  # entao precisam ser serializados entre si, nao so contra execucoes
+  # repetidas de si mesmos.
+  group: deploy-vm
   cancel-in-progress: false
 
 jobs:
@@ -153,6 +169,14 @@ jobs:
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
             "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml pull api && docker compose --env-file .env.prod -f docker-compose.prod.yml up -d api"
 
+      # nginx.conf e alloy-prod.alloy foram sincronizados no step de scp acima,
+      # mas nenhum dos dois recarrega config sozinho (T11) - reload sem downtime
+      # no nginx, restart no alloy (nao tem sinal de reload exposto aqui)
+      - name: Recarrega nginx e alloy (config pode ter mudado no scp acima)
+        run: |
+          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
+            "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml exec nginx nginx -s reload && docker compose --env-file .env.prod -f docker-compose.prod.yml restart alloy"
+
   web-production:
     if: github.event.action == 'web-production' || (github.event_name == 'workflow_dispatch' && inputs.service == 'web')
     # Ver comentario no job api-production - mesmo motivo (runner arm64 nativo,
@@ -228,3 +252,44 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
             "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml pull web && docker compose --env-file .env.prod -f docker-compose.prod.yml up -d web"
+
+      # Ver comentario equivalente no job api-production (T11)
+      - name: Recarrega nginx e alloy (config pode ter mudado no scp acima)
+        run: |
+          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
+            "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml exec nginx nginx -s reload && docker compose --env-file .env.prod -f docker-compose.prod.yml restart alloy"
+
+  # T11 - mudanca so em nginx/observability/scripts/docker-compose.prod.yml
+  # (disparada pelo trigger push, ver "on:" acima). Nao builda nem redeploya
+  # api/web - so sincroniza os arquivos que esses servicos leem em runtime
+  # (nginx.conf, alloy-prod.alloy) e recarrega quem os le. Por isso nao usa
+  # nenhum secret do Environment api-production/web-production (SSH_DEPLOY_KEY
+  # e VM_HOST sao secret/variable de repositorio, nao de Environment - ver
+  # docs/terraform-cloud-credentials-setup.md secao 9.1).
+  infra-production:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout devops (nginx, observability, scripts, docker-compose)
+        uses: actions/checkout@v4
+
+      - name: Configura chave SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_DEPLOY_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ vars.VM_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Sincroniza nginx/observability/scripts/docker-compose pra VM
+        run: |
+          scp -i ~/.ssh/deploy_key -r nginx observability scripts \
+            deploy@"${{ vars.VM_HOST }}":/opt/oikos/
+          scp -i ~/.ssh/deploy_key docker/docker-compose.prod.yml \
+            deploy@"${{ vars.VM_HOST }}":/opt/oikos/docker/docker-compose.prod.yml
+          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
+            "sed -i 's/__OBS_VM_PRIVATE_IP__/${{ vars.OBSERVABILITY_PRIVATE_IP }}/' /opt/oikos/nginx/nginx.conf"
+
+      - name: Recarrega nginx e alloy
+        run: |
+          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
+            "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml exec nginx nginx -s reload && docker compose --env-file .env.prod -f docker-compose.prod.yml restart alloy"
