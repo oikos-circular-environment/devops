@@ -2,9 +2,17 @@
 // Prometheus/Loki/Tempo na E2.1.Micro via IP privado da VCN.
 // Variáveis de ambiente necessárias: PROMETHEUS_REMOTE_WRITE_URL, LOKI_URL, TEMPO_ENDPOINT.
 //
-// Logs vão 100% via OTLP (pino-opentelemetry-transport no api) — sem arquivo, sem tail.
-// Trade-off consciente: se o Alloy cair, logs gerados nessa janela se perdem (sem buffer em
-// disco). Aceito por ora; revisitar se isso causar problema real em produção.
+// Logs da aplicação (api) vão 100% via OTLP (pino-opentelemetry-transport) — sem
+// arquivo, sem tail. Trade-off consciente: se o Alloy cair, logs gerados nessa
+// janela se perdem (sem buffer em disco). Aceito por ora; revisitar se isso
+// causar problema real em produção.
+//
+// Exceção: serviços de terceiros que não falam OTLP nativamente (Postgres,
+// Redis, etc.) não entram nesse esquema — pra esses, o único jeito de não
+// perder o log é ler o stdout do container via Docker (discovery.docker +
+// loki.source.docker abaixo). Achado em produção (2026-07-03): o log de
+// query do Postgres nunca chegava no Loki, só existia via `docker logs` na
+// própria VM — sem isso, um erro/lentidão de query real é difícil de rastrear.
 
 // ── OTLP: recebe traces + métricas + logs direto da aplicação (api) ────────
 // api aponta OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
@@ -84,5 +92,41 @@ prometheus.remote_write "monitoring" {
 loki.write "monitoring" {
 	endpoint {
 		url = sys.env("LOKI_URL") // ex: http://10.x.x.x:3100/loki/api/v1/push
+	}
+}
+
+// ── Log do container do Postgres (nao fala OTLP, so via Docker) ──────────────
+// Requer o bind mount de /var/run/docker.sock no servico alloy do
+// docker-compose.prod.yml (so leitura).
+discovery.docker "containers" {
+	host = "unix:///var/run/docker.sock"
+}
+
+// Filtra so o container do postgresql - o objetivo aqui e so fechar o gap
+// especifico achado (query lenta/erro do Postgres sem rastro nenhum), nao
+// virar um "tail de tudo" que contradiga a decisao consciente do topo do
+// arquivo pros servicos que ja falam OTLP direto.
+discovery.relabel "postgresql" {
+	targets = discovery.docker.containers.targets
+
+	rule {
+		source_labels = ["__meta_docker_container_name"]
+		regex         = "/oikos-prod-postgresql-.*"
+		action        = "keep"
+	}
+
+	rule {
+		source_labels = ["__meta_docker_container_name"]
+		regex         = "/(.*)"
+		target_label  = "container"
+	}
+}
+
+loki.source.docker "postgresql" {
+	host       = "unix:///var/run/docker.sock"
+	targets    = discovery.relabel.postgresql.output
+	forward_to = [loki.write.monitoring.receiver]
+	labels = {
+		service_name = "postgresql",
 	}
 }
