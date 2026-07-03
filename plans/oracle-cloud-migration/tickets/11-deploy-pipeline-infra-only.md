@@ -1,6 +1,6 @@
 # T11 — `devops`: Deploy pipeline — desacoplar infra de release do app
 
-**Status**: Trigger `push` → `infra-production` **confirmado funcionando de verdade** (run real disparado por um merge em `production` que só tocou `nginx/`, sem acionar `api-production`/`web-production`). Mas o reload falhou — achado um bug mais sério de bind mount (nota abaixo), corrigido trocando reload/restart por `--force-recreate`. Falta validar de novo com o fix aplicado. Motivada por um bug real de 2026-07-03: `www.oikos.company` caía na API porque faltava `server_name` no `nginx.conf` (corrigido em T5/T6), mas a correção ficou sem nenhum caminho de deploy — precisou de um `workflow_dispatch` forçado em `web` sem motivo real de rebuild, e mesmo assim o nginx não recarregava sozinho.
+**Status**: **Pronta.** Validada de ponta a ponta: merge até `production` tocando só `nginx/` disparou `infra-production` sozinho (sem acionar `api-production`/`web-production`), o `--force-recreate` recriou `nginx`/`alloy` de verdade, e `https://www.oikos.company/` + `https://oikos.company/` confirmados via internet real servindo o Next.js (`200`, `x-powered-by: Next.js`, corpo idêntico entre os dois — `api.oikos.company` responde `application/json`, confirmando que não é mais a API). Motivada por um bug real de 2026-07-03: `www.oikos.company` caía na API porque faltava `server_name` no `nginx.conf` (corrigido em T5/T6), mas a correção ficou sem nenhum caminho de deploy — precisou de um `workflow_dispatch` forçado em `web` sem motivo real de rebuild, e mesmo assim o nginx não recarregava sozinho.
 
 ### Achado em produção (2026-07-03): reload/restart não atualiza bind mount de arquivo único
 
@@ -45,8 +45,8 @@ T9 (job existente onde os steps de reload também foram adicionados).
 - [x] Trigger `push` → `infra-production` confirmado disparando de verdade em produção (run real, sem acionar `api-production`/`web-production`)
 - [x] Achado e corrigido: reload/restart não atualiza bind mount de arquivo único — trocado por `up -d --force-recreate --no-deps nginx alloy` nos três jobs
 - [x] `concurrency.group` único (`deploy-vm`) serializando os três jobs
-- [ ] Validar de ponta a ponta com o fix de `--force-recreate`: mergear este PR, confirmar que o próximo push (ou um novo `workflow_dispatch`) recria `nginx`/`alloy` de verdade e `www.oikos.company` passa a servir o Next.js
+- [x] Validado de ponta a ponta: push em `production` recriou `nginx`/`alloy` de verdade, `www.oikos.company`/`oikos.company` confirmados servindo o Next.js via internet real (2026-07-03)
 
 ## Definição de Pronto
 
-Um commit alterando só `nginx/nginx.conf` (ou `observability/`) mergeado em `production` dispara o `deploy.yml` (job `infra-production`) sozinho, sincroniza e recarrega o nginx, sem rebuildar nem trocar a versão de `api`/`web` — falta validar repetindo o cenário real de hoje (fix do `www.oikos.company`, ainda pendente de deploy efetivo).
+Confirmado: um commit alterando só `nginx/nginx.conf` mergeado em `production` disparou o `deploy.yml` (job `infra-production`) sozinho, recriou nginx/alloy sem rebuildar nem trocar versão de `api`/`web`, e `www.oikos.company`/`oikos.company` responderam certo via internet real.

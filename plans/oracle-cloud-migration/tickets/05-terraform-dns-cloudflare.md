@@ -1,6 +1,6 @@
 # T5 — `devops`: Terraform — DNS Cloudflare
 
-**Status**: **Pronta.** `apply` rodou com sucesso, os 4 hostnames resolvem de verdade via internet real e o login do Grafana foi confirmado. Falta só cadastrar o certificado como secret no repo (T9) e confirmar o login do MinIO especificamente.
+**Status**: **Pronta.** `apply` rodou com sucesso, os 4 hostnames resolvem de verdade via internet real, e o login próprio de `grafana` e `minio` confirmados funcionando (2026-07-03). Certificado já cadastrado como secret no repo (confirmado em T9).
 **Repositório**: `oikos-circular-environment/devops`
 
 ## Escopo
@@ -36,8 +36,8 @@ T4 (precisa do IP público da `A1.Flex`).
 - [x] `terraform apply` rodado com sucesso — os 4 registros DNS, o certificado Origin CA, a security list (T7) e o bucket/policies de backup (T8) foram todos criados/atualizados de verdade
 - [x] Testar resolução DNS dos 4 hostnames — `api.oikos.company`, `oikos.company`, `minio.oikos.company` (200) e `grafana.oikos.company` (302) confirmados via internet real (Cloudflare)
 - [x] Confirmar login próprio funcionando em `grafana` com credencial forte — autenticação testada via API do Grafana
-- [ ] Confirmar login próprio funcionando em `minio` especificamente (rota testada, mas autenticação em si não foi exercida)
-- [ ] Certificado cadastrado como secret no repo `devops` (`CLOUDFLARE_ORIGIN_CERT`/`CLOUDFLARE_ORIGIN_KEY`, usuário cadastra os valores) — valores saem via `terraform output -raw origin_certificate_pem` / `origin_private_key_pem` (parte do T9)
+- [x] Confirmar login próprio funcionando em `minio` especificamente — testado e confirmado (2026-07-03)
+- [x] Certificado cadastrado como secret no repo `devops` (`CLOUDFLARE_ORIGIN_CERT`/`CLOUDFLARE_ORIGIN_KEY`) — confirmado em T9, deploys reais já materializam o cert com sucesso
 
 ## Definição de Pronto
 
