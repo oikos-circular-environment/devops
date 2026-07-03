@@ -47,7 +47,7 @@ T2 (mobile) é independente de tudo — pode rodar em paralelo com qualquer outr
 | [T8](./tickets/08-backup-automatizado.md) | `devops` — Backup automatizado | **Pronta.** Backups reais de Postgres e Redis no bucket, timers systemd ativos, restore validado de ponta a ponta | T4 |
 | [T9](./tickets/09-deploy-pipeline.md) | `devops` — Deploy pipeline | **Pronta.** `workflow_dispatch` real testado com sucesso de ponta a ponta (build, backup, migration, deploy) | T1, T3, T6, T4 |
 | [T10](./tickets/10-migracao-dados-cutover.md) | `devops` — Migração de dados + cutover | Script e checklist de cutover escritos, execução real deferida pra revisão final (ticket 99) | T9, T5, T8 |
-| [T11](./tickets/11-deploy-pipeline-infra-only.md) | `devops` — Deploy pipeline: desacoplar infra de release do app | Planejamento — motivada pelo bug real do `www.oikos.company` (2026-07-03) | T9 |
+| [T11](./tickets/11-deploy-pipeline-infra-only.md) | `devops` — Deploy pipeline: desacoplar infra de release do app | Implementada, aguardando validação real (push em `production` ainda não testado) | T9 |
 
 ## Refinamento
 

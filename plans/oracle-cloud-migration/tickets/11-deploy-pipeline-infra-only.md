@@ -1,50 +1,46 @@
 # T11 — `devops`: Deploy pipeline — desacoplar infra de release do app
 
-**Status**: Planejamento — ainda não implementada. Motivada por um bug real de 2026-07-03: `www.oikos.company` caía na API porque faltava `server_name` no `nginx.conf` (corrigido em T5/T6), mas a correção ficou sem nenhum caminho de deploy — precisou de um `workflow_dispatch` forçado em `web` sem motivo real de rebuild, e mesmo assim o nginx não recarrega sozinho.
+**Status**: Implementada, aguardando validação real (merge + push em `production` ainda não testado de ponta a ponta). Motivada por um bug real de 2026-07-03: `www.oikos.company` caía na API porque faltava `server_name` no `nginx.conf` (corrigido em T5/T6), mas a correção ficou sem nenhum caminho de deploy — precisou de um `workflow_dispatch` forçado em `web` sem motivo real de rebuild, e mesmo assim o nginx não recarregava sozinho.
 **Repositório**: `oikos-circular-environment/devops`
 
 ## Escopo
 
-- Separar o job atual de `api-production`/`web-production` em duas responsabilidades via `needs:`:
-  - **build**: só roda com `repository_dispatch` (de `api`/`web`) ou `workflow_dispatch` explícito — builda a imagem, publica no GHCR.
-  - **sync+deploy**: sincroniza `nginx/`, `observability/`, `scripts/`, `docker-compose.prod.yml` pra VM, roda `pull`/`up -d` dos serviços e recarrega o nginx.
-- Novo trigger `push` em `production` do próprio `devops` (path-filter em `nginx/**`, `observability/**`, `scripts/**`) que dispara só o job de sync+deploy — sem build, reaproveitando `API_VERSION`/`WEB_VERSION` já existentes no `.env.prod` remoto (lidos antes de qualquer sync, nunca sobrescritos às cegas — mesmo padrão que o job `web-production` já usa hoje pra preservar `WEB_VERSION`).
-- Step fixo de reload do nginx (`docker compose exec nginx nginx -s reload`) em **toda** execução de deploy — tanto no fluxo normal (build → sync+deploy) quanto no novo fluxo disparado por push do `devops`. Fecha o gap de hoje: o `nginx.conf` é copiado pra VM via `scp`, mas nada reinicia/recarrega o container, então a config nova fica sem efeito até alguém rodar isso manualmente.
-- Fluxo disparado por push do `devops` roda pros dois serviços (`api` e `web`), já que uma mudança de infra (ex: `nginx.conf`) pode afetar o roteamento dos dois.
+- Novo job independente `infra-production` em `deploy.yml`, disparado só pelo trigger `push` (branch `production`, path-filter em `nginx/**`, `observability/**`, `scripts/**`, `docker/docker-compose.prod.yml`) — sincroniza esses arquivos pra VM e recarrega os serviços afetados. Não builda nem redeploya `api`/`web`, não toca no `.env.prod`.
+- Implementação real ficou **mais simples** que o desenho original discutido na sessão (jobs `build`/`sync-deploy` ligados por `needs:`, com leitura de `API_VERSION`/`WEB_VERSION` do `.env.prod` remoto): como o `infra-production` não builda nem faz `pull`/`up -d` de `api`/`web`, ele não precisa saber a versão de nada — só mexe nos arquivos que `nginx` e `alloy` leem em runtime. Isso também evitou o job novo precisar de qualquer secret do Environment `api-production`/`web-production` (`SSH_DEPLOY_KEY`/`VM_HOST` são secret/variable de repositório, acessíveis sem Environment — ver `docs/terraform-cloud-credentials-setup.md` §9.1).
+- Step de reload adicionado nos **três** jobs (`api-production`, `web-production`, `infra-production`): `docker compose exec nginx nginx -s reload` (sem downtime) + `docker compose restart alloy` (não expõe sinal de reload). Fecha o gap onde `nginx.conf`/`alloy-prod.alloy` eram copiados pra VM via `scp` mas nunca recarregados.
+- `cadvisor`/`node-exporter` não recebem restart — não montam nenhum arquivo de `nginx/` ou `observability/` (confirmado lendo `docker-compose.prod.yml`), só `nginx` (`nginx.conf`) e `alloy` (`alloy-prod.alloy`) dependem desses diretórios.
+- `concurrency.group` mudou de `deploy-${{ action/service }}` (um grupo por serviço) pra um grupo único `deploy-vm` — os três jobs mexem nos mesmos arquivos/containers na mesma VM via SSH, precisam ser serializados entre si, não só contra reexecuções de si mesmos.
 
 ## Fora de escopo
 
 - Mudar o mecanismo de trigger do `api`/`web` (`repository_dispatch` continua igual).
-- Adotar tag `:latest` no GHCR — decisão consciente de manter o `.env.prod` remoto (`API_VERSION`/`WEB_VERSION`) como fonte de verdade de qual versão está rodando, em vez de uma tag móvel que poderia divergir do que foi realmente promovido (discutido e decidido em 2026-07-03).
-- Modularizar o job de build inteiro em `build → sync → backup → migrate → deploy-container` totalmente encadeado (item já listado como melhoria futura separada em T9) — esse ticket só separa build de sync+deploy, não vai além disso.
+- Adotar tag `:latest` no GHCR — decisão consciente de manter o `.env.prod` remoto (`API_VERSION`/`WEB_VERSION`) como fonte de verdade de qual versão está rodando (discutido e decidido em 2026-07-03). Ficou ainda mais irrelevante pra esse ticket específico, já que o novo job nem mexe em versão de `api`/`web`.
+- Modularizar o job de build inteiro em `build → sync → backup → migrate → deploy-container` totalmente encadeado (item já listado como melhoria futura separada em T9) — não foi necessário pra resolver o caso concreto (infra-only), fica pra depois se algum dia for preciso.
 
 ## Decisões
 
-- **Fonte de verdade de versão para o fluxo disparado por push no `devops`**: ler `API_VERSION`/`WEB_VERSION` do `.env.prod` já presente na VM, nunca pressupor `:latest` do GHCR (decisão de 2026-07-03, ver discussão na sessão — evita bump de versão não intencional junto de um fix que é só de infra).
-
-## Em aberto (decidir antes ou durante a implementação)
-
-- [ ] O path-filter do trigger `push` inclui `docker-compose.prod.yml` inteiro (risco: um push que mexa nesse arquivo por outro motivo, não relacionado a nginx/observability, dispara esse job à toa) ou fica restrito só a `nginx/**` + `observability/**` + `scripts/**`, tratando mudança em `docker-compose.prod.yml` caso a caso?
-- [ ] `nginx -s reload` basta (não recarrega imagem/env do próprio serviço nginx) ou em algum caso precisa de `up -d --force-recreate nginx`?
+- **Path-filter do `push` inclui `docker/docker-compose.prod.yml` inteiro** (não só `nginx/**`+`observability/**`+`scripts/**`) — aceito o risco de disparar o job à toa numa mudança nesse arquivo não relacionada a infra (ex: limite de memória de um serviço), porque o custo de rodar esse job à toa é baixo (só sincroniza arquivo + reload, não builda nada).
+- **`nginx -s reload` + `restart alloy`, sem `--force-recreate`** — cobre o caso de mudança só de config (bind mount), que é o único cenário que esse trigger cobre hoje. Se um dia o próprio serviço `nginx`/`alloy` mudar no compose (imagem, variável de ambiente), aí sim precisaria de `up -d` — não implementado agora porque não é o caso de uso motivador.
 
 ## Referências de spec
 
 - `tickets/09-deploy-pipeline.md` §Melhorias futuras (job atual, gaps já documentados)
 - `04-tech-plan.md` §`oikos/devops` (linha do `.github/workflows/deploy.yml`)
+- `.github/workflows/deploy.yml` (job `infra-production`)
 
 ## Dependências
 
-T9 (é o job existente que será refatorado).
+T9 (job existente onde os steps de reload também foram adicionados).
 
 ## Checklist
 
-- [ ] Separar `api-production`/`web-production` em jobs `build` + `sync-deploy` (via `needs:`), preservando o comportamento atual pro fluxo normal
-- [ ] Novo trigger `push` (branch `production`, path-filter conforme decisão acima) rodando só `sync-deploy`
-- [ ] Step de leitura de `API_VERSION`/`WEB_VERSION` do `.env.prod` remoto antes de decidir o que sincronizar, quando não vem de um build novo
-- [ ] Step fixo de reload do nginx em toda execução (fluxo normal e fluxo por push)
-- [ ] Fluxo por push do `devops` cobre `api` e `web` juntos (não targeted como hoje)
-- [ ] Validar de ponta a ponta: um commit alterando só `nginx/nginx.conf` mergeado em `production` dispara o `deploy.yml` sozinho, sincroniza e recarrega o nginx, sem rebuildar nem trocar versão de `api`/`web`
+- [x] Novo job `infra-production`, disparado só por `push` em `production` (path-filter conforme decisão acima)
+- [x] Step de sync (scp) de `nginx/`, `observability/`, `scripts/`, `docker/docker-compose.prod.yml` no job novo, sem tocar em `.env.prod`
+- [x] Step de reload do nginx + restart do alloy no job novo
+- [x] Mesmo step de reload adicionado em `api-production` e `web-production` (gap valia pros três caminhos, não só pro novo)
+- [x] `concurrency.group` único (`deploy-vm`) serializando os três jobs
+- [ ] Validar de ponta a ponta: um commit alterando só `nginx/nginx.conf` mergeado em `production` dispara o `infra-production` sozinho, sincroniza e recarrega o nginx, sem rebuildar nem trocar versão de `api`/`web` — pendente até esse PR ser mergeado pelo usuário e o push real acontecer
 
 ## Definição de Pronto
 
-Um commit alterando só `nginx/nginx.conf` (ou `observability/`) mergeado em `production` dispara o `deploy.yml` sozinho, sincroniza e recarrega o nginx, sem rebuildar nem trocar a versão de `api`/`web` — validado repetindo o cenário real de hoje (fix do `www.oikos.company`).
+Um commit alterando só `nginx/nginx.conf` (ou `observability/`) mergeado em `production` dispara o `deploy.yml` (job `infra-production`) sozinho, sincroniza e recarrega o nginx, sem rebuildar nem trocar a versão de `api`/`web` — falta validar repetindo o cenário real de hoje (fix do `www.oikos.company`, ainda pendente de deploy efetivo).
