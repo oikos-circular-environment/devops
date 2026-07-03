@@ -140,12 +140,12 @@ jobs:
       - name: Roda a migration (para o deploy se falhar - container antigo continua servindo)
         run: |
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
-            "cd /opt/oikos/docker && docker compose -f docker-compose.prod.yml run --rm api npx prisma migrate deploy"
+            "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml run --rm api npx prisma migrate deploy"
 
       - name: Deploy targeted do servico api
         run: |
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
-            "cd /opt/oikos/docker && docker compose -f docker-compose.prod.yml pull api && docker compose -f docker-compose.prod.yml up -d api"
+            "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml pull api && docker compose --env-file .env.prod -f docker-compose.prod.yml up -d api"
 
   web-production:
     if: github.event.action == 'web-production' || (github.event_name == 'workflow_dispatch' && inputs.service == 'web')
@@ -220,4 +220,4 @@ jobs:
       - name: Deploy targeted do servico web
         run: |
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
-            "cd /opt/oikos/docker && docker compose -f docker-compose.prod.yml pull web && docker compose -f docker-compose.prod.yml up -d web"
+            "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml pull web && docker compose --env-file .env.prod -f docker-compose.prod.yml up -d web"

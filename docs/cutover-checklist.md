@@ -21,7 +21,7 @@ Ordem exata das operações pro corte final, da máquina de desenvolvimento atua
    - Contagem de linhas nas tabelas principais bate com a origem (`SELECT count(*) FROM <tabela>` nos dois lados)
    - Alguns registros de amostra (os mais recentes) conferidos manualmente
    - Contagem de objetos MinIO bate (`mc ls --recursive oikos-dest/oikos | wc -l` vs. equivalente na origem)
-6. [ ] Confirmar a stack de produção saudável na VM (`docker compose -f docker-compose.prod.yml ps`, todos os serviços `healthy`/`running`)
+6. [ ] Confirmar a stack de produção saudável na VM (`docker compose --env-file .env.prod -f docker-compose.prod.yml ps`, todos os serviços `healthy`/`running`)
 7. [ ] **Cutover de DNS**: nada a fazer aqui de fato — os registros do Cloudflare (T5) já apontam pra VM desde que foram criados; o corte real é desativar o túnel antigo (próximo passo), que é o que estava mascarando o tráfego indo pro destino errado
 8. [ ] Apontar o app mobile pro hostname de produção definitivo (`api.oikos.company`), ou confirmar que já aponta (se já foi configurado assim desde o início)
 9. [ ] **Desativar o túnel Cloudflare manual** na máquina de desenvolvimento (`cloudflared tunnel run --token ...` — matar o processo/serviço)

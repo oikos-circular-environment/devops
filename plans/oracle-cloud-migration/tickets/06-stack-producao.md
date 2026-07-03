@@ -48,7 +48,7 @@ T4 (precisa da VM pra testar de verdade, mesmo que os arquivos possam ser escrit
 
 ## Definição de Pronto
 
-`docker compose -f docker-compose.prod.yml up -d` sobe todos os serviços saudáveis na `A1.Flex`, `nginx` responde nos 4 hostnames roteando pro serviço certo, e nenhum container ultrapassa seu limite de memória sob uso normal.
+`docker compose --env-file .env.prod -f docker-compose.prod.yml up -d` sobe todos os serviços saudáveis na `A1.Flex`, `nginx` responde nos 4 hostnames roteando pro serviço certo, e nenhum container ultrapassa seu limite de memória sob uso normal.
 
 ## Nota
 
