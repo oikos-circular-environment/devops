@@ -41,7 +41,7 @@ Um PR de teste, ao ser mergeado em `production`, cria a tag SemVer sozinho e dis
 Mesmo procedimento do T1 (`api`) — ver o guia completo lá. Resumo:
 1. GitHub → avatar → **Settings** → **Developer settings** → **Personal access tokens** → **Fine-grained tokens** → **Generate new token**
 2. **Resource owner**: `oikos-circular-environment` · **Repository access**: só **`devops`** · **Permissions** → **Contents**: `Read and write`
-3. **Generate token**, copiar o valor
-4. No repo **`web`** → **Settings** → **Secrets and variables** → **Actions** → **New repository secret** → nome `DEVOPS_DISPATCH_PAT` → colar
+3. **Generate token**, copiar o valor (aprovar em **Pending requests** da organização se necessário)
+4. Cadastrar via CLI: `gh secret set DEVOPS_DISPATCH_PAT --repo oikos-circular-environment/web` (ou pela UI: repo **`web`** → **Settings** → **Secrets and variables** → **Actions** → **New repository secret** → nome `DEVOPS_DISPATCH_PAT` → colar)
 
 **Token separado do `api`** — não reaproveitar o mesmo, mesmo com permissão idêntica.

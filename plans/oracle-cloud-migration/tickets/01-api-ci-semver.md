@@ -61,6 +61,11 @@ Um PR de teste, ao ser mergeado em `production`, cria a tag SemVer sozinho e dis
 3. **Repository access**: "Only select repositories" → escolher só **`devops`**
 4. **Permissions** → **Repository permissions** → **Contents**: `Read and write`
 5. **Generate token** → copiar o valor (só aparece uma vez)
-6. No repo **`api`** → **Settings** → **Secrets and variables** → **Actions** → **New repository secret** → nome `DEVOPS_DISPATCH_PAT` → colar o valor
+6. Se a organização exigir aprovação (**Require administrator approval** ligado): ir em **Personal access tokens → Pending requests** nas settings da organização e aprovar
+7. Cadastrar como secret, via CLI (valor nunca passa pelo assistente):
+   ```bash
+   gh secret set DEVOPS_DISPATCH_PAT --repo oikos-circular-environment/api
+   ```
+   ou pela UI: repo **`api`** → **Settings** → **Secrets and variables** → **Actions** → **New repository secret** → nome `DEVOPS_DISPATCH_PAT` → colar o valor
 
 **Importante**: gerar um token **separado** pro `web` (T3) — não reaproveitar este mesmo token nos dois repos, mesmo que a permissão seja idêntica (facilita revogar um sem afetar o outro).
