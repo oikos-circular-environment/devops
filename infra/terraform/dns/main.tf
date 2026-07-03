@@ -31,6 +31,16 @@ resource "cloudflare_dns_record" "apex" {
   comment = "web (apex) - VM A1.Flex, gerenciado pelo Terraform (T5)"
 }
 
+resource "cloudflare_dns_record" "www" {
+  zone_id = local.zone_id
+  name    = "www"
+  type    = "CNAME"
+  content = var.domain_name
+  ttl     = 1
+  proxied = true
+  comment = "web (www) - aponta pro apex, mesmo frontend na VM A1.Flex, gerenciado pelo Terraform (T5)"
+}
+
 resource "cloudflare_dns_record" "grafana" {
   zone_id = local.zone_id
   name    = "grafana"
