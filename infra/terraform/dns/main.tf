@@ -101,3 +101,37 @@ resource "cloudflare_origin_ca_certificate" "this" {
     ignore_changes = [hostnames]
   }
 }
+
+# --- Configuracoes de seguranca da zona (achado em auditoria via API, 2026-07-03) ---
+# Provider v5 usa um resource por configuracao (cloudflare_zone_setting),
+# substituiu o cloudflare_zone_settings_override monolitico da v4.
+
+resource "cloudflare_zone_setting" "ssl_strict" {
+  zone_id    = local.zone_id
+  setting_id = "ssl"
+  value      = "strict"
+  # Zona estava em "full" - aceita qualquer certificado na origem sem validar,
+  # mesmo com o Origin CA (acima) ja emitido especificamente pra permitir
+  # validacao estrita. "strict" fecha esse gap de verdade.
+}
+
+resource "cloudflare_zone_setting" "min_tls_1_2" {
+  zone_id    = local.zone_id
+  setting_id = "min_tls_version"
+  value      = "1.2"
+  # Zona estava em "1.0" - TLS 1.0/1.1 sao considerados obsoletos/inseguros
+  # (BEAST/POODLE, fora de conformidade PCI-DSS desde 2018). TLS 1.3 ja
+  # estava habilitado (tls_1_3 setting, nao gerenciado aqui - default "on").
+}
+
+resource "cloudflare_zone_setting" "force_https" {
+  zone_id    = local.zone_id
+  setting_id = "always_use_https"
+  value      = "on"
+  # Zona estava em "off" - requisicao HTTP pura nao redirecionava sozinha
+  # pra HTTPS.
+}
+
+# Import blocks pra esses 3 resources ficam no main.tf da raiz (nao aqui) -
+# import block dentro de modulo filho nao e suportado, precisa do caminho
+# completo com "module.dns." no "to" (ver infra/terraform/main.tf).
