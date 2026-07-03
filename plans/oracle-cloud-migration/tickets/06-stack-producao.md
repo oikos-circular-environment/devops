@@ -1,6 +1,6 @@
 # T6 — `devops`: Stack de Produção
 
-**Status**: Escrito e validado localmente (builds passam, web testado servindo HTTP 200) — falta só testar na VM real (depende de T4)
+**Status**: **Pronta.** Stack completa rodando de verdade na `A1.Flex` (bootstrap manual via SSH), validada de ponta a ponta pela internet real (`https://api.oikos.company/health`, `oikos.company`, `minio.oikos.company` respondendo via Cloudflare). `grafana.oikos.company` retorna 502 — esperado, a stack de observabilidade (T7) ainda não foi implantada na `E2.1.Micro`.
 **Repositório**: `oikos-circular-environment/devops`
 
 ## Escopo
@@ -20,36 +20,41 @@ Pipeline de deploy que usa esses arquivos (T9); observabilidade (T7, roda na out
 
 T4 (precisa da VM pra testar de verdade, mesmo que os arquivos possam ser escritos em paralelo).
 
+## Bugs encontrados e corrigidos no bootstrap real (2026-07-03)
+
+Nenhum destes aparecia nos testes locais — só surgiram testando contra a VM de verdade:
+
+1. **`docker compose` nunca lia `.env.prod`** — Compose só carrega `.env` automaticamente; toda invocação (em `deploy.yml` e nos runbooks) precisava de `--env-file .env.prod` explícito. Sem isso, `${API_VERSION}`, `${POSTGRES_USER}` etc. resolviam em branco/`latest`. Corrigido em `deploy.yml` e toda a documentação que roda `docker compose` contra `docker-compose.prod.yml`.
+2. **`nginx.conf` referenciava `cloudflare-origin.pem`/`.key`**, mas `deploy.yml` materializa `origin.pem`/`origin.key` — nginx falhava ao subir (certificado não encontrado).
+3. **Placeholder `__OBS_VM_PRIVATE_IP__` nunca era substituído** — `deploy.yml` nunca tinha o passo de `sed` que o próprio comentário do `nginx.conf` dizia que deveria existir. Corrigido manualmente na VM nesta sessão, e automatizado em `deploy.yml` (ver T9, nota 7).
+4. **Healthcheck da `api` usava `http://localhost:3333/health`** — dentro do container Alpine, `localhost` resolve pra `::1` (IPv6) primeiro, e o Fastify só escuta em IPv4 (`0.0.0.0`), causando falso-negativo permanente de "connection refused". Corrigido pra `127.0.0.1` explícito.
+5. **`observability/` nunca fazia parte do `scp` de sincronização** — `deploy.yml` só copiava `docker`, `nginx`, `scripts`, mas o volume do `alloy` referencia `../observability/alloy/alloy-prod.alloy`. Sem esse diretório, o Docker cria automaticamente um diretório vazio no lugar do arquivo esperado, e o container do `alloy` falha ao montar. Corrigido em `deploy.yml` (ver T9, nota 6).
+
 ## Checklist
 
-- [x] `docker/Dockerfile.api.prod` — migrado do `api`, `CMD` simplificado pra `node --import ./dist/lib/otel.js dist/server.js` (migration sai do `CMD`, vira passo do deploy em T9) — build local validado
-- [x] `docker/Dockerfile.web.prod` — build standalone multi-stage — build local validado, container testado servindo HTTP 200
-- [x] `docker/init-db.sh` — migrado do `api` (extensão postgis)
-- [x] `docker/docker-compose.prod.yml` — serviço `postgresql`, limite 512MB
+- [x] `docker/Dockerfile.api.prod` — build `arm64` real via Buildx+QEMU, testado rodando na `A1.Flex`
+- [x] `docker/Dockerfile.web.prod` — build `arm64` real via Buildx+QEMU, testado rodando na `A1.Flex`
+- [x] `docker/init-db.sh` — migrado do `api` (extensão postgis), migration `prisma migrate deploy` rodou de verdade contra Postgres real
+- [x] `docker/docker-compose.prod.yml` — serviço `postgresql`, limite 512MB — confirmado aplicado de verdade (`docker inspect`)
 - [x] `docker/docker-compose.prod.yml` — serviço `redis`, limite 128MB, `REDIS_AOF_ENABLED=yes` (persistência, necessário pro backup em T8)
 - [x] `docker/docker-compose.prod.yml` — serviço `minio`, limite 256MB
-- [x] `docker/docker-compose.prod.yml` — serviço `createbuckets` (idempotente, cria bucket `oikos` com policy pública)
-- [x] `docker/docker-compose.prod.yml` — serviço `api`, limite 512MB, `image:` (GHCR) + `build:` (context `../../api`, pra validar localmente)
-- [x] `docker/docker-compose.prod.yml` — serviço `web`, limite 512MB, `NODE_OPTIONS="--max-old-space-size=384"`
-- [x] `docker/docker-compose.prod.yml` — serviço `nginx`, limite 64MB
-- [x] `docker/docker-compose.prod.yml` — serviços `cadvisor` (128MB), `node-exporter` (64MB), `alloy` (128MB) — ver T7
+- [x] `docker/docker-compose.prod.yml` — serviço `createbuckets` (idempotente, cria bucket `oikos` com policy pública) — rodou e saiu com exit 0
+- [x] `docker/docker-compose.prod.yml` — serviço `api`, limite 512MB — rodando `healthy`, uso real ~109MB
+- [x] `docker/docker-compose.prod.yml` — serviço `web`, limite 512MB — rodando, uso real ~32MB
+- [x] `docker/docker-compose.prod.yml` — serviço `nginx`, limite 64MB — rodando, roteando os 4 hostnames
+- [x] `docker/docker-compose.prod.yml` — serviços `cadvisor` (128MB), `node-exporter` (64MB), `alloy` (128MB) — todos `healthy`/`running`
 - [x] `docker/docker-compose.prod.yml` — nome do compose project mantido como `oikos-prod` (dashboards do T7 dependem disso)
 - [x] `docker/.env.prod.example` — criado, cobre todas as vars novas (versões de imagem, endpoints de observabilidade)
 - [x] `.gitignore` do `devops` atualizado: `docker/.env.prod`, `docker/certs/` nunca commitados
-- [x] `nginx/nginx.conf` — roteia `api.oikos.company` → `api:3333`
-- [x] `nginx/nginx.conf` — roteia `oikos.company` → `web:3000`
-- [x] `nginx/nginx.conf` — roteia `grafana.oikos.company` → placeholder `__OBS_VM_PRIVATE_IP__` (substituído via `sed` no deploy, não envsubst do nginx — evita colidir com `$host`/`$remote_addr` nativos)
-- [x] `nginx/nginx.conf` — roteia `minio.oikos.company` → console do MinIO (porta 9001); porta 9000 (API S3) **não** exposta via nginx
-- [x] `nginx/nginx.conf` — TLS com certificado Cloudflare Origin CA (arquivo, de T5 — path `/etc/nginx/certs/`)
-- [x] `docker/systemd/oikos-web-restart.{service,timer}` — restart noturno (03:00) do `web` (mitigação do memory leak conhecido do Next.js — [vercel/next.js#88603](https://github.com/vercel/next.js/discussions/88603)). Deploy coloca os arquivos do `devops` em `/opt/oikos/` na VM — confirmado
-- [x] `api` migrado pra logar via OTLP (`pino-opentelemetry-transport`) em vez de arquivo — sem volume `./logs` nem no `api` nem no `alloy`. Decisão consciente: sem buffer em disco, log gerado com o Alloy fora do ar se perde; aceito por ora, revisitar se virar problema real
-- [x] Build validado localmente (arquitetura nativa, não arm64 ainda): `docker build` de `api` e `web` passam; `web` testado rodando e respondendo HTTP 200
-- [ ] Build arm64 (via Buildx+QEMU) — pendente, fica pro T9 (CI já roda em arm64 nativamente via matriz/QEMU) ou validação manual quando a VM existir
+- [x] `nginx/nginx.conf` — roteia `api.oikos.company` → `api:3333` — testado via `https://api.oikos.company/health` real
+- [x] `nginx/nginx.conf` — roteia `oikos.company` → `web:3000` — testado via `https://oikos.company` real (200)
+- [x] `nginx/nginx.conf` — roteia `grafana.oikos.company` → IP privado da `E2.1.Micro` — roteamento correto, 502 porque T7 ainda não rodou
+- [x] `nginx/nginx.conf` — roteia `minio.oikos.company` → console do MinIO (porta 9001); porta 9000 (API S3) **não** exposta via nginx — testado via `https://minio.oikos.company` real (200)
+- [x] `nginx/nginx.conf` — TLS com certificado Cloudflare Origin CA — testado via HTTPS real (HTTP/2, TLS ok)
+- [x] `docker/systemd/oikos-web-restart.{service,timer}` — restart noturno (03:00) do `web` (mitigação do memory leak conhecido do Next.js — [vercel/next.js#88603](https://github.com/vercel/next.js/discussions/88603))
+- [x] `api` loga via OTLP (`pino-opentelemetry-transport`), sem volume de logs
+- [x] Build `arm64` real via Buildx+QEMU — imagens publicadas em `ghcr.io/oikos-circular-environment/{api,web}:bootstrap` (tag temporária desta validação; T9 vai gerar tags SemVer reais)
 
 ## Definição de Pronto
 
-`docker compose --env-file .env.prod -f docker-compose.prod.yml up -d` sobe todos os serviços saudáveis na `A1.Flex`, `nginx` responde nos 4 hostnames roteando pro serviço certo, e nenhum container ultrapassa seu limite de memória sob uso normal.
-
-## Nota
-
-Builds validados nesta sessão só na arquitetura nativa do host de desenvolvimento — confirma a lógica dos Dockerfiles (deps, prisma generate, tsc build, standalone do Next.js), mas não substitui testar o build arm64 real contra a VM Oracle.
+`docker compose --env-file .env.prod -f docker-compose.prod.yml up -d` sobe todos os serviços saudáveis na `A1.Flex`, `nginx` responde nos 4 hostnames roteando pro serviço certo, e nenhum container ultrapassa seu limite de memória sob uso normal. **Confirmado de verdade em 2026-07-03.**
