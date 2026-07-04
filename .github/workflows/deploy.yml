@@ -16,15 +16,7 @@ on:
       version:
         description: "Versao (tag SemVer) a implantar (vazio = ultima tag; ignorado pra stack)"
         required: false
-  # T12 - qualquer merge em production do devops reconcilia a stack INTEIRA
-  # (job stack-production), inclusive api/web convergindo pra ultima release
-  # publicada. Antes (T11) so um path-filter restrito de infra disparava algo,
-  # e o resto do devops ficava refem do repository_dispatch do api/web -
-  # mudanca no proprio deploy.yml, por exemplo, nao disparava nada.
-  # paths-ignore em vez de paths: docs/planos nao afetam a stack, e
-  # infra/terraform/** e do Terraform Cloud (o apply la e aprovado manualmente
-  # DEPOIS do merge - rodar a stack no push reconciliaria contra a infra
-  # antiga; pra reconvergir pos-apply, usar workflow_dispatch service=stack).
+  # Push em production reconcilia a stack inteira - ver docs/docker-infra.md#1
   push:
     branches: [production]
     paths-ignore:
@@ -34,43 +26,22 @@ on:
       - "infra/terraform/**"
 
 concurrency:
-  # Grupo unico (nao por acao/servico) - as 3 pipelines (api, web, infra -
-  # cada uma modularizada em varios jobs desde T9) mexem nos mesmos
-  # arquivos/containers na mesma VM, entao precisam ser serializadas entre
-  # si, nao so contra execucoes repetidas de si mesmas. Ficaria fora de
-  # controle usar um grupo por job, ja que "concurrency" e por workflow run,
-  # nao por job - continua valendo do mesmo jeito com a modularizacao.
+  # Grupo unico - ver docs/docker-infra.md#1
   group: deploy-vm
   cancel-in-progress: false
 
 jobs:
-  # --- api: build -> sync -> backup -> migrate -> deploy-container ---------
-  # Modularizado (2026-07-03, T9) - motivo e legibilidade, nao economia de
-  # rebuild num "Re-run failed jobs" (na pratica a recuperacao de uma falha e
-  # disparar um novo repository_dispatch/workflow_dispatch, que builda de
-  # qualquer jeito). Jobs separados deixam claro na UI do Actions em qual
-  # etapa a execucao esta parada/falhou. So o job "api-build" tem o `if:` -
-  # se ele for pulado (evento nao e api-production), os jobs downstream com
-  # `needs:` sao pulados automaticamente (comportamento padrao do Actions).
+  # --- api: build -> sync -> backup -> migrate -> deploy-container --------- (ver docs/docker-infra.md#1)
   api-build:
     if: github.event.action == 'api-production' || (github.event_name == 'workflow_dispatch' && inputs.service == 'api')
-    # Runner arm64 nativo - evita cross-compile via QEMU (docker/setup-qemu-action),
-    # que travava com "qemu: uncaught target signal 4 (Illegal instruction)" durante
-    # o npm ci, sem nem reportar falha (ficava preso indefinidamente). Achado ao
-    # testar o workflow_dispatch de verdade (T9). A1.Flex tambem e arm64 (Ampere),
-    # entao a imagem buildada aqui roda nativa la, sem tradução nenhuma.
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-24.04-arm # arm64 nativo - ver docs/docker-infra.md#1
     outputs:
       version: ${{ steps.version.outputs.tag }}
     steps:
       - name: Checkout devops (Dockerfile)
         uses: actions/checkout@v4
 
-      # sha/version vem do repository_dispatch (sempre preenchidos) ou do
-      # workflow_dispatch (opcionais desde T12) - vazios, resolve a ultima
-      # tag SemVer do repo api via API (sort -V, nao ordem da API, que nao e
-      # garantida) e o commit dela. Tag anotada aponta pra um objeto tag, nao
-      # pro commit - por isso a dereferencia condicional.
+      # Resolucao de versao/SHA - ver docs/docker-infra.md#1 (ticket 12)
       - name: Resolve versao e SHA (auto quando nao informados)
         id: version
         env:
@@ -123,10 +94,7 @@ jobs:
   api-sync:
     needs: api-build
     runs-on: ubuntu-24.04-arm
-    # So esse job precisa dos secrets de app (Postgres/Redis/MinIO/JWT/Admin)
-    # pra renderizar o .env.prod - build/backup/migrate/deploy-container so
-    # usam secret de repositorio (SSH_DEPLOY_KEY), nao precisam do Environment.
-    environment: api-production
+    environment: api-production # secrets de app - ver docs/docker-infra.md#2
     steps:
       - name: Checkout devops (compose, nginx, observability, scripts)
         uses: actions/checkout@v4
@@ -138,10 +106,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "${{ vars.VM_HOST }}" >> ~/.ssh/known_hosts
 
-      # Renderiza o .env.prod inteiro localmente (nao via sed remoto) - evita
-      # qualquer problema de escaping de caractere especial em senha/segredo
-      # dentro de um comando SSH remoto. O arquivo so existe nesse runner
-      # efemero e no destino final (VM), nunca commitado (ver .gitignore).
+      # Renderizado localmente, nao via sed remoto - ver docs/docker-infra.md#2
       - name: Renderiza .env.prod a partir dos secrets
         env:
           POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
@@ -172,9 +137,6 @@ jobs:
           QUORUM_JOB_DELAY_MS=86400000
           ACCOUNT_DELETION_DELAY_MS=7776000000
           WORKER_CONCURRENCY=5
-          # Ativado (2026-07-03) em vez do log nativo de query do Postgres -
-          # ja correlaciona com traceId/spanId da requisicao via OTLP (ver
-          # api/src/lib/prisma.ts e logger.ts)
           PRISMA_QUERY_LOG=true
 
           PROMETHEUS_REMOTE_WRITE_URL=http://${{ vars.OBSERVABILITY_PRIVATE_IP }}:9090/api/v1/write
@@ -187,13 +149,10 @@ jobs:
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" 'mkdir -p /opt/oikos/docker/certs'
           scp -i ~/.ssh/deploy_key -r docker nginx observability scripts \
             deploy@"${{ vars.VM_HOST }}":/opt/oikos/
-          # Placeholder do nginx.conf pro IP privado da E2.1.Micro - so sed,
-          # nao envsubst do nginx (evita colidir com $host/$remote_addr nativos)
+          # sed, nao envsubst - ver docs/docker-infra.md#2
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
             "sed -i 's/__OBS_VM_PRIVATE_IP__/${{ vars.OBSERVABILITY_PRIVATE_IP }}/' /opt/oikos/nginx/nginx.conf"
-          # WEB_VERSION preexistente (se houver) precisa sobreviver ao
-          # render acima, que so sabe a versao da api - preserva o valor
-          # atual do arquivo remoto antes de mandar o novo.
+          # WEB_VERSION preexistente sobrevive ao render - ver docs/docker-infra.md#2
           CURRENT_WEB_VERSION=$(ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
             "grep '^WEB_VERSION=' /opt/oikos/docker/.env.prod 2>/dev/null | cut -d= -f2" || echo "latest")
           sed -i "s|WEB_VERSION=\${WEB_VERSION:-latest}|WEB_VERSION=${CURRENT_WEB_VERSION:-latest}|" /tmp/env.prod.rendered
@@ -255,34 +214,23 @@ jobs:
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
             "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml pull api && docker compose --env-file .env.prod -f docker-compose.prod.yml up -d api"
 
-      # nginx.conf e alloy-prod.alloy sao montados como bind mount de ARQUIVO
-      # UNICO no docker-compose.prod.yml. `sed -i` (usado no scp acima) reescreve
-      # via arquivo temporario + rename, trocando o inode - um bind mount de
-      # arquivo unico fica preso no inode antigo, entao nem `nginx -s reload`
-      # nem `docker compose restart` enxergam o conteudo novo (so recriar o
-      # container remonta o bind). Achado em producao (T11, 2026-07-03): o
-      # fix do www.oikos.company nao pegou mesmo depois do deploy, porque o
-      # container do nginx nunca tinha sido recriado desde o bootstrap (T6).
+      # gotcha bind-mount - ver docs/docker-infra.md#6 (ticket 11)
       - name: Recria nginx e alloy (bind mount de arquivo unico nao atualiza com reload/restart)
         run: |
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
             "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --force-recreate --no-deps nginx alloy"
 
-  # --- web: build -> sync -> deploy-container -------------------------------
-  # Sem backup/migrate (nao existe migration do Prisma pro web). Mesmo motivo
-  # de modularizacao do api acima (legibilidade).
+  # --- web: build -> sync -> deploy-container ------------------------------- (ver docs/docker-infra.md#1)
   web-build:
     if: github.event.action == 'web-production' || (github.event_name == 'workflow_dispatch' && inputs.service == 'web')
-    # Ver comentario no job api-build - mesmo motivo (runner arm64 nativo,
-    # sem QEMU).
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-24.04-arm # arm64 nativo - ver docs/docker-infra.md#1
     outputs:
       version: ${{ steps.version.outputs.tag }}
     steps:
       - name: Checkout devops (Dockerfile)
         uses: actions/checkout@v4
 
-      # Ver comentario equivalente no api-build (T12)
+      # (ver ticket 12)
       - name: Resolve versao e SHA (auto quando nao informados)
         id: version
         env:
@@ -354,10 +302,7 @@ jobs:
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
             "sed -i 's/__OBS_VM_PRIVATE_IP__/${{ vars.OBSERVABILITY_PRIVATE_IP }}/' /opt/oikos/nginx/nginx.conf"
 
-      # Nao precisa do Environment web-production pra isso - so mexe na linha
-      # de WEB_VERSION, nao em nenhum secret de app (Postgres/Redis/MinIO/JWT/
-      # Admin sao so do api). Valor vem da tag SemVer gerada pelo CI do web
-      # (formato controlado, seguro pra sed sem risco de caractere especial).
+      # Nao precisa do Environment web-production - ver docs/docker-infra.md#2
       - name: Atualiza WEB_VERSION no .env.prod remoto
         run: |
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" "
@@ -372,11 +317,7 @@ jobs:
   web-deploy-container:
     needs: web-sync
     runs-on: ubuntu-24.04-arm
-    # Environment sem nenhum secret hoje (so o api tem os de app) - mantido
-    # aqui, no job que efetivamente troca o container, so pelo tracking de
-    # deployment que o GitHub associa a um Environment (visivel na aba
-    # "Environments" do repo).
-    environment: web-production
+    environment: web-production # sem secrets hoje - ver docs/docker-infra.md#2
     steps:
       - name: Configura chave SSH
         run: |
@@ -390,26 +331,13 @@ jobs:
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
             "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml pull web && docker compose --env-file .env.prod -f docker-compose.prod.yml up -d web"
 
-      # Ver comentario equivalente no job api-deploy-container (T11)
+      # (ver ticket 11)
       - name: Recria nginx e alloy (bind mount de arquivo unico nao atualiza com reload/restart)
         run: |
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
             "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --force-recreate --no-deps nginx alloy"
 
-  # T12 (evolucao do infra-production do T11) - reconciliacao COMPLETA da
-  # stack a partir do proprio devops, sem depender do repository_dispatch:
-  # qualquer merge em production (fora docs/planos/terraform, ver "on:")
-  # sincroniza os arquivos de deploy e converge TODOS os containers,
-  # inclusive api/web pra ultima tag SemVer publicada nos repos deles
-  # (resolvida via API - e a ultima release real que passou pelo CI, nao a
-  # tag movel :latest do Docker, que segue proibida por decisao do T9/T11).
-  # Cobre inclusive dispatch perdido: se o repository_dispatch de uma release
-  # falhar, o proximo merge do devops converge a stack do mesmo jeito.
-  # Nao builda imagem nenhuma - so pull do que ja existe no GHCR. Por isso
-  # nao usa nenhum secret de Environment (SSH_DEPLOY_KEY/SOURCE_REPO_PAT e
-  # VM_HOST sao de repositorio - ver docs/terraform-cloud-credentials-setup.md
-  # secao 9.1). Edge case aceito (decisao 2026-07-03): bootstrap do zero, sem
-  # imagem api/web publicada ainda, falha no step de pull - esperado.
+  # Reconciliacao completa da stack - ver docs/docker-infra.md#3 (ticket 12)
   stack-production:
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.service == 'stack')
     runs-on: ubuntu-24.04-arm
@@ -424,9 +352,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "${{ vars.VM_HOST }}" >> ~/.ssh/known_hosts
 
-      # sort -V porque a ordem de retorno da API de tags nao e garantida.
-      # api_changed decide se backup+migration rodam (so quando a versao do
-      # api realmente avanca - mesma protecao do fluxo de release normal).
+      # sort -V + api_changed - ver docs/docker-infra.md#1
       - name: Resolve ultimas versoes publicadas de api/web
         id: versions
         env:
@@ -454,9 +380,6 @@ jobs:
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
             "sed -i 's/__OBS_VM_PRIVATE_IP__/${{ vars.OBSERVABILITY_PRIVATE_IP }}/' /opt/oikos/nginx/nginx.conf"
 
-      # So mexe nas linhas de versao - nunca toca nos secrets do arquivo
-      # (mesmo padrao seguro do web-sync: valor e tag SemVer de formato
-      # controlado). Guard de vazio protege o caso de repo ainda sem tag.
       - name: Atualiza API_VERSION/WEB_VERSION no .env.prod remoto
         if: steps.versions.outputs.api_version != '' || steps.versions.outputs.web_version != ''
         run: |
@@ -484,11 +407,7 @@ jobs:
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
             "/opt/oikos/scripts/backup-postgres.sh"
 
-      # up -d normal (sem --force-recreate) - o Compose detecta sozinho mudanca
-      # de cpus/environment/etc definidos direto no docker-compose.prod.yml (foi
-      # o caso do fix de throttle do postgres, T10 - so pegou depois de um
-      # --force-recreate manual, porque nenhum job recriava esse servico).
-      # Se nada relevante mudou, up -d e no-op.
+      # up -d simples resolve mudanca de config - ver docs/docker-infra.md#3 (ticket 10)
       - name: Aplica mudancas de config nos servicos de infra que nao sao nginx/alloy
         run: |
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
@@ -500,17 +419,12 @@ jobs:
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
             "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml run --rm api npx prisma migrate deploy"
 
-      # Step separado dos servicos de infra de proposito: se a imagem nao
-      # existir no GHCR (bootstrap do zero), a falha fica isolada e visivel
-      # aqui, sem mascarar o resto da reconciliacao.
+      # Step separado de proposito - ver docs/docker-infra.md#3
       - name: Converge api/web pra ultima release publicada
         run: |
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
             "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml pull api web && docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --no-deps api web"
 
-      # nginx.conf e alloy-prod.alloy sao bind mount de arquivo unico - Compose
-      # nao detecta mudanca de conteudo sozinho, precisa de --force-recreate
-      # (ver comentario equivalente no job api-deploy-container, T11)
       - name: Recria nginx e alloy (bind mount de arquivo unico nao atualiza com reload/restart)
         run: |
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \

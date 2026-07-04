@@ -1,24 +1,4 @@
-# Override de producao pro docker-compose.observability.yml - so aplicado na
-# E2.1.Micro (1GB), nunca em dev local. Uso (T9, deploy pipeline):
-#
-#   docker compose \
-#     -f docker-compose.observability.yml \
-#     -f docker-compose.observability.prod.yml \
-#     up -d prometheus loki tempo grafana alertmanager
-#
-# Reparem que otelcol e promtail ficam de fora da lista de servicos - nao sao
-# necessarios em producao (substituidos pelo Alloy rodando na A1.Flex, que
-# envia metricas/logs/traces direto pra prometheus/loki/tempo via IP privado),
-# entao nem sobem, mesmo estando declarados no arquivo base.
-#
-# Limites de memoria re-tunados pra caber em ~875MB dos 1GB disponiveis,
-# deixando folga pro SO/Docker (valores do tech-plan, T7):
-#   prometheus    200MB (era 512MB no dev local)
-#   loki          150MB (era 256MB)
-#   tempo         120MB (era 256MB)
-#   grafana       180MB (era 256MB)
-#   alertmanager   25MB (era 64MB)
-#   soma: 675MB de limite hard - com folga adicional real pro SO/Docker
+# Override de producao (E2.1.Micro) - ver docs/docker-infra.md#5 (ticket 07, ticket 09)
 
 services:
   prometheus:
@@ -34,9 +14,7 @@ services:
           memory: 150M
 
   tempo:
-    # Porta OTLP gRPC exposta pro host - e como o Alloy da A1.Flex (VM
-    # diferente) alcanca o Tempo via IP privado. Em dev local nao precisa
-    # disso (otelcol fala com tempo dentro da rede docker interna).
+    # OTLP gRPC exposta pro host - Alloy da A1.Flex alcanca via IP privado (ver docs/docker-infra.md#4)
     ports:
       - "4317:4317"
     deploy:
@@ -45,11 +23,7 @@ services:
           memory: 120M
 
   grafana:
-    # O arquivo base habilita GF_AUTH_ANONYMOUS_ENABLED=true com role Admin
-    # (conveniencia pro dev local) - em producao isso da acesso admin total
-    # sem login pra qualquer um que chegue em grafana.oikos.company. Como o
-    # T5 decidiu proteger o Grafana só pelo login proprio (sem Cloudflare
-    # Access), essa senha forte precisa ser a unica barreira de verdade.
+    # anonymous-auth desabilitado em producao - ver docs/docker-infra.md#4 (ticket 05)
     environment:
       GF_AUTH_ANONYMOUS_ENABLED: "false"
     deploy:
