@@ -1,11 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Migracao UNICA de dados (Postgres + MinIO) da maquina de desenvolvimento
-# atual pra VM Oracle (T10, cutover). Uso manual/assistido, uma vez so - nao
-# e um workflow automatizado (isso e o backup recorrente, T8). Rodar a
-# partir da maquina de desenvolvimento (tem acesso direto a origem); o
-# destino (VM Oracle) e alcancado via SSH.
+# Migracao one-time de dados (Postgres + MinIO) - ver docs/docker-infra.md#7 (ticket 10)
 #
 # Nenhuma variavel tem default de proposito - forca conferir os valores
 # antes de rodar uma operacao dessas, que sobrescreve o banco/bucket de
@@ -78,7 +74,7 @@ migrate_minio() {
 
   command -v mc >/dev/null || { echo "ERRO: mc (MinIO client) nao encontrado no PATH" >&2; exit 1; }
 
-  echo "==> Abrindo tunel SSH local pro MinIO da VM (porta 9000 nunca e exposta publicamente, ver T6)"
+  echo "==> Abrindo tunel SSH local pro MinIO da VM (porta 9000 nunca e exposta publicamente, ver ticket 06)"
   ssh -i "$DEST_SSH_KEY" -f -N -L "${DEST_MINIO_PORT}:localhost:${DEST_MINIO_PORT}" "deploy@${DEST_SSH_HOST}"
   tunnel_pid=$(pgrep -f "L ${DEST_MINIO_PORT}:localhost:${DEST_MINIO_PORT}.*${DEST_SSH_HOST}" | head -1 || true)
   trap '[ -n "${tunnel_pid:-}" ] && kill "$tunnel_pid" 2>/dev/null || true' EXIT

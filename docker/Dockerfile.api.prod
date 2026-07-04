@@ -1,5 +1,4 @@
-# Migrado de oikos/api/Dockerfile.prod (T1/T6 — devops passa a ser dono de todo Dockerfile de produção).
-# Build context esperado: raiz do repo oikos/api (checkout da tag/SHA recebida via repository_dispatch).
+# Migrado de oikos/api/Dockerfile.prod (ticket 01/06). Build context: raiz do repo oikos/api.
 
 # ---- Stage 1: Builder ----
 FROM node:22-alpine AS builder
@@ -29,8 +28,7 @@ RUN npm install -g npm@11
 COPY package*.json ./
 RUN npm ci --omit=dev --ignore-scripts
 
-# prisma CLI é devDep, mas necessária pro passo de `prisma migrate deploy` do deploy.yml
-# (roda como comando separado antes do container subir — ver docker-compose.prod.yml / T9)
+# prisma CLI é devDep, mas necessária pro `prisma migrate deploy` do deploy.yml (ticket 09)
 COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 COPY --from=builder /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
 

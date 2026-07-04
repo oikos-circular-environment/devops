@@ -7,11 +7,7 @@ locals {
   deploy_ssh_public_key = file("${path.module}/files/deploy_id.pub")
 }
 
-# Shape filtra a arquitetura automaticamente (A1.Flex = ARM, E2.1.Micro = x86),
-# entao as duas data sources abaixo ja retornam so imagens compativeis.
-# Variante "Minimal" (menos pacotes pre-instalados, equivalente a uma imagem
-# Docker slim) em vez da imagem padrao - reduz baseline de RAM/disco, o que
-# importa principalmente na E2.1.Micro (1GB, orcamento de memoria apertado).
+# Shape/imagem - ver docs/infrastructure.md (Compute)
 data "oci_core_images" "app" {
   compartment_id           = var.compartment_ocid
   operating_system         = "Canonical Ubuntu"

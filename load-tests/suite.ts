@@ -22,12 +22,7 @@ interface SetupData {
   categoryIds: string[];
 }
 
-// Timeline (sequential):
-//   smoke  → 0s        → 2m total        → ends ~2m10s
-//   load   → 2m30s     → 13m total       → ends ~16m
-//   stress → 16m30s    → 23m total       → ends ~40m
-//   spike  → 40m30s    → 5m30s total     → ends ~46m30s
-//   soak   → 47m       → 40m total       → ends ~87m
+// Timeline: ver load-tests/README.md
 export const options: Options = {
   scenarios: {
     smoke: {

@@ -12,9 +12,7 @@ resource "oci_core_internet_gateway" "this" {
   enabled        = true
 }
 
-# Necessario pra E2.1.Micro (sem IP publico) ter saida pra internet - um
-# Internet Gateway sozinho so roteia trafego de instancia com IP publico.
-# Sem isso, cloud-init nao consegue nem instalar o Docker (apt sem rota).
+# NAT Gateway - ver docs/infrastructure.md (Network)
 resource "oci_core_nat_gateway" "this" {
   compartment_id = var.compartment_ocid
   vcn_id         = oci_core_vcn.this.id
@@ -59,9 +57,7 @@ resource "oci_core_security_list" "this" {
     protocol    = "all"
   }
 
-  # So IPv4 - a VCN nao tem IPv6 habilitado e as instancias so recebem IP
-  # publico IPv4, entao regras IPv6 aqui seriam config morta (OCI rejeita a
-  # criacao da Security List se a VCN nao suportar o CIDR IPv6 referenciado).
+  # So IPv4 - ver docs/infrastructure.md (Network)
   dynamic "ingress_security_rules" {
     for_each = data.cloudflare_ip_ranges.this.ipv4_cidrs
     content {
@@ -76,11 +72,7 @@ resource "oci_core_security_list" "this" {
     }
   }
 
-  # SSH aberto pra qualquer IP - decisao consciente (projeto solo, sem
-  # bastion dedicado, IP residencial dinamico). Hardening fica por conta do
-  # cloud-init: autenticacao so por chave, sem senha, sem login root.
-  # Na subnet privada essa regra e inofensiva - sem IP publico, nao ha como
-  # a internet alcancar a porta de qualquer forma.
+  # SSH aberto pra qualquer IP - decisao consciente, ver docs/infrastructure.md (Network)
   ingress_security_rules {
     protocol    = "6"
     source      = "0.0.0.0/0"
@@ -92,9 +84,7 @@ resource "oci_core_security_list" "this" {
     }
   }
 
-  # Portas de observabilidade (T7) - so a partir da subnet publica (onde
-  # roda o Alloy, na A1.Flex), nunca da internet. Sem isso, a OCI bloqueia
-  # esse trafego mesmo sendo intra-VCN (achado na T4/T7).
+  # Portas de observabilidade - ver docs/infrastructure.md (Network, ticket 07, ticket 04)
   ingress_security_rules {
     protocol    = "6"
     source      = "10.0.1.0/24"
@@ -141,9 +131,7 @@ resource "oci_core_security_list" "this" {
 }
 
 # Subnet publica - so a A1.Flex, unica com IP publico e porta 443 exposta.
-# dns_label mantido igual ao original ("oikossub") de proposito - e um campo
-# imutavel (ForceNew) na OCI, mudar o valor destruiria/recriaria a subnet
-# mesmo com o "moved" abaixo preservando o endereco do recurso.
+# dns_label mantido igual ao original de proposito - ver docs/infrastructure.md (Network)
 resource "oci_core_subnet" "public" {
   compartment_id             = var.compartment_ocid
   vcn_id                     = oci_core_vcn.this.id

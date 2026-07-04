@@ -35,10 +35,7 @@ module "storage" {
   app_instance_id  = module.compute.app_instance_id
 }
 
-# Import dos 3 cloudflare_zone_setting novos (module.dns) - import block
-# dentro de modulo filho nao e suportado, precisa ficar na raiz com "to"
-# prefixado pelo caminho do modulo (achado consultando a doc oficial do
-# provider, guia de migracao v4->v5).
+# Import dos cloudflare_zone_setting do module.dns - ver docs/infrastructure.md (Cloudflare)
 import {
   to = module.dns.cloudflare_zone_setting.ssl_strict
   id = "${module.dns.zone_id}/ssl"
