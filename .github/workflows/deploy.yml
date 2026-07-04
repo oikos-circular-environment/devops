@@ -6,28 +6,32 @@ on:
   workflow_dispatch:
     inputs:
       service:
-        description: "Servico a implantar"
+        description: "Servico a implantar (stack = reconverge containers sem rebuild, ex: apos um apply do Terraform)"
         required: true
         type: choice
-        options: [api, web]
+        options: [api, web, stack]
       sha:
-        description: "SHA do commit a implantar (repo de origem)"
-        required: true
+        description: "SHA do commit a implantar (vazio = resolve da ultima tag; ignorado pra stack)"
+        required: false
       version:
-        description: "Versao (tag SemVer) sendo implantada"
-        required: true
-  # T11 - mudanca so de infra (nginx/observability/scripts) nao depende de
-  # release do api/web para chegar na VM. Sem isso, um fix como o do
-  # www.oikos.company (server_name faltando) ficava sem nenhum caminho de
-  # deploy, exceto forcar um workflow_dispatch de api/web sem motivo real
-  # de rebuild.
+        description: "Versao (tag SemVer) a implantar (vazio = ultima tag; ignorado pra stack)"
+        required: false
+  # T12 - qualquer merge em production do devops reconcilia a stack INTEIRA
+  # (job stack-production), inclusive api/web convergindo pra ultima release
+  # publicada. Antes (T11) so um path-filter restrito de infra disparava algo,
+  # e o resto do devops ficava refem do repository_dispatch do api/web -
+  # mudanca no proprio deploy.yml, por exemplo, nao disparava nada.
+  # paths-ignore em vez de paths: docs/planos nao afetam a stack, e
+  # infra/terraform/** e do Terraform Cloud (o apply la e aprovado manualmente
+  # DEPOIS do merge - rodar a stack no push reconciliaria contra a infra
+  # antiga; pra reconvergir pos-apply, usar workflow_dispatch service=stack).
   push:
     branches: [production]
-    paths:
-      - "nginx/**"
-      - "observability/**"
-      - "scripts/**"
-      - "docker/docker-compose.prod.yml"
+    paths-ignore:
+      - "plans/**"
+      - "docs/**"
+      - "**/*.md"
+      - "infra/terraform/**"
 
 concurrency:
   # Grupo unico (nao por acao/servico) - as 3 pipelines (api, web, infra -
@@ -62,17 +66,40 @@ jobs:
       - name: Checkout devops (Dockerfile)
         uses: actions/checkout@v4
 
+      # sha/version vem do repository_dispatch (sempre preenchidos) ou do
+      # workflow_dispatch (opcionais desde T12) - vazios, resolve a ultima
+      # tag SemVer do repo api via API (sort -V, nao ordem da API, que nao e
+      # garantida) e o commit dela. Tag anotada aponta pra um objeto tag, nao
+      # pro commit - por isso a dereferencia condicional.
+      - name: Resolve versao e SHA (auto quando nao informados)
+        id: version
+        env:
+          GH_TOKEN: ${{ secrets.SOURCE_REPO_PAT }}
+        run: |
+          VERSION="${{ github.event.client_payload.version || inputs.version }}"
+          SHA="${{ github.event.client_payload.sha || inputs.sha }}"
+          if [ -z "$VERSION" ]; then
+            VERSION=$(gh api repos/oikos-circular-environment/api/tags --paginate --jq '.[].name' | sort -V | tail -1)
+            echo "Versao resolvida automaticamente: $VERSION"
+          fi
+          if [ -z "$SHA" ]; then
+            SHA=$(gh api "repos/oikos-circular-environment/api/git/ref/tags/$VERSION" --jq '.object.sha')
+            TYPE=$(gh api "repos/oikos-circular-environment/api/git/ref/tags/$VERSION" --jq '.object.type')
+            if [ "$TYPE" = "tag" ]; then
+              SHA=$(gh api "repos/oikos-circular-environment/api/git/tags/$SHA" --jq '.object.sha')
+            fi
+            echo "SHA resolvido automaticamente: $SHA"
+          fi
+          echo "tag=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
       - name: Checkout api (fonte pra build da imagem)
         uses: actions/checkout@v4
         with:
           repository: oikos-circular-environment/api
-          ref: ${{ github.event.client_payload.sha || inputs.sha }}
+          ref: ${{ steps.version.outputs.sha }}
           token: ${{ secrets.SOURCE_REPO_PAT }}
           path: source/api
-
-      - name: Determina a tag da versao
-        id: version
-        run: echo "tag=${{ github.event.client_payload.version || inputs.version }}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
@@ -255,17 +282,36 @@ jobs:
       - name: Checkout devops (Dockerfile)
         uses: actions/checkout@v4
 
+      # Ver comentario equivalente no api-build (T12)
+      - name: Resolve versao e SHA (auto quando nao informados)
+        id: version
+        env:
+          GH_TOKEN: ${{ secrets.SOURCE_REPO_PAT }}
+        run: |
+          VERSION="${{ github.event.client_payload.version || inputs.version }}"
+          SHA="${{ github.event.client_payload.sha || inputs.sha }}"
+          if [ -z "$VERSION" ]; then
+            VERSION=$(gh api repos/oikos-circular-environment/web/tags --paginate --jq '.[].name' | sort -V | tail -1)
+            echo "Versao resolvida automaticamente: $VERSION"
+          fi
+          if [ -z "$SHA" ]; then
+            SHA=$(gh api "repos/oikos-circular-environment/web/git/ref/tags/$VERSION" --jq '.object.sha')
+            TYPE=$(gh api "repos/oikos-circular-environment/web/git/ref/tags/$VERSION" --jq '.object.type')
+            if [ "$TYPE" = "tag" ]; then
+              SHA=$(gh api "repos/oikos-circular-environment/web/git/tags/$SHA" --jq '.object.sha')
+            fi
+            echo "SHA resolvido automaticamente: $SHA"
+          fi
+          echo "tag=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
       - name: Checkout web (fonte pra build da imagem)
         uses: actions/checkout@v4
         with:
           repository: oikos-circular-environment/web
-          ref: ${{ github.event.client_payload.sha || inputs.sha }}
+          ref: ${{ steps.version.outputs.sha }}
           token: ${{ secrets.SOURCE_REPO_PAT }}
           path: source/web
-
-      - name: Determina a tag da versao
-        id: version
-        run: echo "tag=${{ github.event.client_payload.version || inputs.version }}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
@@ -350,15 +396,22 @@ jobs:
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
             "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --force-recreate --no-deps nginx alloy"
 
-  # T11 - mudanca so em nginx/observability/scripts/docker-compose.prod.yml
-  # (disparada pelo trigger push, ver "on:" acima). Nao builda nem redeploya
-  # api/web - so sincroniza os arquivos que esses servicos leem em runtime
-  # (nginx.conf, alloy-prod.alloy) e recarrega quem os le. Por isso nao usa
-  # nenhum secret do Environment api-production/web-production (SSH_DEPLOY_KEY
-  # e VM_HOST sao secret/variable de repositorio, nao de Environment - ver
-  # docs/terraform-cloud-credentials-setup.md secao 9.1).
-  infra-production:
-    if: github.event_name == 'push'
+  # T12 (evolucao do infra-production do T11) - reconciliacao COMPLETA da
+  # stack a partir do proprio devops, sem depender do repository_dispatch:
+  # qualquer merge em production (fora docs/planos/terraform, ver "on:")
+  # sincroniza os arquivos de deploy e converge TODOS os containers,
+  # inclusive api/web pra ultima tag SemVer publicada nos repos deles
+  # (resolvida via API - e a ultima release real que passou pelo CI, nao a
+  # tag movel :latest do Docker, que segue proibida por decisao do T9/T11).
+  # Cobre inclusive dispatch perdido: se o repository_dispatch de uma release
+  # falhar, o proximo merge do devops converge a stack do mesmo jeito.
+  # Nao builda imagem nenhuma - so pull do que ja existe no GHCR. Por isso
+  # nao usa nenhum secret de Environment (SSH_DEPLOY_KEY/SOURCE_REPO_PAT e
+  # VM_HOST sao de repositorio - ver docs/terraform-cloud-credentials-setup.md
+  # secao 9.1). Edge case aceito (decisao 2026-07-03): bootstrap do zero, sem
+  # imagem api/web publicada ainda, falha no step de pull - esperado.
+  stack-production:
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.service == 'stack')
     runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout devops (nginx, observability, scripts, docker-compose)
@@ -371,6 +424,27 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "${{ vars.VM_HOST }}" >> ~/.ssh/known_hosts
 
+      # sort -V porque a ordem de retorno da API de tags nao e garantida.
+      # api_changed decide se backup+migration rodam (so quando a versao do
+      # api realmente avanca - mesma protecao do fluxo de release normal).
+      - name: Resolve ultimas versoes publicadas de api/web
+        id: versions
+        env:
+          GH_TOKEN: ${{ secrets.SOURCE_REPO_PAT }}
+        run: |
+          API_VERSION=$(gh api repos/oikos-circular-environment/api/tags --paginate --jq '.[].name' | sort -V | tail -1)
+          WEB_VERSION=$(gh api repos/oikos-circular-environment/web/tags --paginate --jq '.[].name' | sort -V | tail -1)
+          CURRENT_API=$(ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
+            "grep '^API_VERSION=' /opt/oikos/docker/.env.prod 2>/dev/null | cut -d= -f2" || true)
+          echo "Ultima release api: ${API_VERSION:-nenhuma} (rodando: ${CURRENT_API:-nenhuma}) | web: ${WEB_VERSION:-nenhuma}"
+          echo "api_version=$API_VERSION" >> "$GITHUB_OUTPUT"
+          echo "web_version=$WEB_VERSION" >> "$GITHUB_OUTPUT"
+          if [ -n "$API_VERSION" ] && [ "$API_VERSION" != "$CURRENT_API" ]; then
+            echo "api_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "api_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Sincroniza nginx/observability/scripts/docker-compose pra VM
         run: |
           scp -i ~/.ssh/deploy_key -r nginx observability scripts \
@@ -379,6 +453,36 @@ jobs:
             deploy@"${{ vars.VM_HOST }}":/opt/oikos/docker/docker-compose.prod.yml
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
             "sed -i 's/__OBS_VM_PRIVATE_IP__/${{ vars.OBSERVABILITY_PRIVATE_IP }}/' /opt/oikos/nginx/nginx.conf"
+
+      # So mexe nas linhas de versao - nunca toca nos secrets do arquivo
+      # (mesmo padrao seguro do web-sync: valor e tag SemVer de formato
+      # controlado). Guard de vazio protege o caso de repo ainda sem tag.
+      - name: Atualiza API_VERSION/WEB_VERSION no .env.prod remoto
+        if: steps.versions.outputs.api_version != '' || steps.versions.outputs.web_version != ''
+        run: |
+          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" "
+            touch /opt/oikos/docker/.env.prod
+            if [ -n '${{ steps.versions.outputs.api_version }}' ]; then
+              if grep -q '^API_VERSION=' /opt/oikos/docker/.env.prod; then
+                sed -i 's/^API_VERSION=.*/API_VERSION=${{ steps.versions.outputs.api_version }}/' /opt/oikos/docker/.env.prod
+              else
+                echo 'API_VERSION=${{ steps.versions.outputs.api_version }}' >> /opt/oikos/docker/.env.prod
+              fi
+            fi
+            if [ -n '${{ steps.versions.outputs.web_version }}' ]; then
+              if grep -q '^WEB_VERSION=' /opt/oikos/docker/.env.prod; then
+                sed -i 's/^WEB_VERSION=.*/WEB_VERSION=${{ steps.versions.outputs.web_version }}/' /opt/oikos/docker/.env.prod
+              else
+                echo 'WEB_VERSION=${{ steps.versions.outputs.web_version }}' >> /opt/oikos/docker/.env.prod
+              fi
+            fi
+          "
+
+      - name: Backup de seguranca do Postgres (so quando a versao do api muda)
+        if: steps.versions.outputs.api_changed == 'true'
+        run: |
+          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
+            "/opt/oikos/scripts/backup-postgres.sh"
 
       # up -d normal (sem --force-recreate) - o Compose detecta sozinho mudanca
       # de cpus/environment/etc definidos direto no docker-compose.prod.yml (foi
@@ -390,9 +494,23 @@ jobs:
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
             "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --no-deps postgresql redis minio createbuckets cadvisor node-exporter"
 
+      - name: Roda a migration (so quando a versao do api muda - para aqui se falhar)
+        if: steps.versions.outputs.api_changed == 'true'
+        run: |
+          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
+            "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml run --rm api npx prisma migrate deploy"
+
+      # Step separado dos servicos de infra de proposito: se a imagem nao
+      # existir no GHCR (bootstrap do zero), a falha fica isolada e visivel
+      # aqui, sem mascarar o resto da reconciliacao.
+      - name: Converge api/web pra ultima release publicada
+        run: |
+          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
+            "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml pull api web && docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --no-deps api web"
+
       # nginx.conf e alloy-prod.alloy sao bind mount de arquivo unico - Compose
       # nao detecta mudanca de conteudo sozinho, precisa de --force-recreate
-      # (ver comentario equivalente no job api-production, T11)
+      # (ver comentario equivalente no job api-deploy-container, T11)
       - name: Recria nginx e alloy (bind mount de arquivo unico nao atualiza com reload/restart)
         run: |
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
