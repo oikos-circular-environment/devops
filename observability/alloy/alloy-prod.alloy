@@ -1,14 +1,4 @@
-// Alloy consolidado — substitui otelcol (dev). Roda na A1.Flex, envia tudo pra
-// Prometheus/Loki/Tempo na E2.1.Micro via IP privado da VCN.
-// Variáveis de ambiente necessárias: PROMETHEUS_REMOTE_WRITE_URL, LOKI_URL, TEMPO_ENDPOINT.
-//
-// Logs vão 100% via OTLP (pino-opentelemetry-transport no api) — sem arquivo, sem tail.
-// Trade-off consciente: se o Alloy cair, logs gerados nessa janela se perdem (sem buffer em
-// disco). Aceito por ora; revisitar se isso causar problema real em produção.
-//
-// Log de query nativo do Postgres avaliado e descartado (2026-07-03) — decisão
-// consciente de usar o PRISMA_QUERY_LOG do api em vez disso (já correlaciona
-// com traceId/spanId da requisição via OTLP, o que o log nativo não faria).
+// Config do Alloy — decisões/env vars: ver docs/docker-infra.md#4
 
 // ── OTLP: recebe traces + métricas + logs direto da aplicação (api) ────────
 // api aponta OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318

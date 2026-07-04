@@ -1,18 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Backup diario do Redis pro Oracle Object Storage (T8) - snapshot RDB via
-# SAVE sincrono (nao BGSAVE, pra garantir que o arquivo esta completo antes
-# de copiar). Mesmo mecanismo de autenticacao do backup-postgres.sh (instance
-# principal).
+# Backup diario do Redis - ver docs/docker-infra.md#7 (ticket 08)
 
 COMPOSE_DIR="/opt/oikos/docker"
 COMPOSE_FILE="${COMPOSE_DIR}/docker-compose.prod.yml"
 BUCKET="oikos-backups"
 
-# set -a exporta as variaveis pro ambiente do processo, nao so pro shell
-# atual - sem isso, docker compose (processo filho) nao enxerga nenhuma
-# delas (mesmo bug achado no backup-postgres.sh, T9).
+# set -a - mesmo bug do backup-postgres.sh, ver docs/docker-infra.md#7 (ticket 09)
 set -a
 # shellcheck disable=SC1091
 source "${COMPOSE_DIR}/.env.prod"

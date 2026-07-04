@@ -11,12 +11,7 @@ resource "oci_objectstorage_bucket" "backups" {
   versioning     = "Disabled"
 }
 
-# Instance Principal - a A1.Flex se autentica no Object Storage sem nenhuma
-# credencial estatica embutida na VM (nem API key, nem token). A OCI emite um
-# certificado efemero automaticamente pra instancia; o dynamic group abaixo
-# reconhece essa instancia especifica pelo OCID, e a policy da a ela permissao
-# de gerenciar objetos so nesse bucket. Os scripts de backup (backup-postgres.sh
-# /backup-redis.sh) usam `oci ... --auth instance_principal`.
+# Instance Principal - ver docs/infrastructure.md (Storage)
 resource "oci_identity_dynamic_group" "backup" {
   compartment_id = var.tenancy_ocid
   name           = "oikos-backup-dynamic-group"
@@ -33,9 +28,6 @@ resource "oci_identity_policy" "backup" {
   ]
 }
 
-# O proprio servico de Object Storage (nao a VM) precisa de permissao explicita
-# pra executar as acoes de delete automaticas do lifecycle policy abaixo -
-# sem essa policy o apply falha com "InsufficientServicePermissions".
 resource "oci_identity_policy" "objectstorage_lifecycle" {
   compartment_id = var.compartment_ocid
   name           = "oikos-objectstorage-lifecycle-policy"
@@ -45,16 +37,12 @@ resource "oci_identity_policy" "objectstorage_lifecycle" {
   ]
 }
 
-# Policies de IAM da OCI levam alguns segundos pra propagar - sem esse delay
-# o apply da lifecycle policy abaixo falha (InsufficientServicePermissions)
-# mesmo com a policy ja criada, porque tenta usa-la antes da propagacao.
 resource "time_sleep" "wait_for_objectstorage_policy" {
   depends_on      = [oci_identity_policy.objectstorage_lifecycle]
   create_duration = "30s"
 }
 
-# Retencao de 7 dias por prefixo, nativa da OCI - sem script customizado de
-# rotacao/limpeza (T8, decisao do tech-plan).
+# Retencao nativa OCI de 7 dias - ver docs/infrastructure.md (Storage, ticket 08)
 resource "oci_objectstorage_object_lifecycle_policy" "backups" {
   depends_on = [time_sleep.wait_for_objectstorage_policy]
 

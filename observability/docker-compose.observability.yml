@@ -1,28 +1,5 @@
 # Stack de observabilidade local — NÃO incluir no docker-compose.prod.yml
-#
-# Alocação de memória (~1.7 GB):
-#   otelcol      512 MB   — recebe OTLP, faz fan-out para Tempo/Prometheus/Loki
-#   prometheus   512 MB   — scrape + armazenamento de métricas
-#   loki         256 MB   — agregação de logs
-#   tempo        256 MB   — distributed tracing
-#   promtail      64 MB   — tailing dos arquivos de log do Pino
-#   grafana      256 MB   — dashboards
-#   alertmanager  64 MB   — roteamento de alertas
-#
-# Pré-requisito (obrigatório — sem o .env a stack não sobe com credenciais corretas):
-#   cp observability/.env.observability.example observability/.env.observability
-#   # Gere uma senha própria: openssl rand -base64 32
-#
-# Para iniciar:
-#   npm run obs:up
-#
-# Acessar Grafana: http://localhost:3000
-#
-# Deploy em produção (E2.1.Micro, 1GB) - ver docker-compose.observability.prod.yml
-# (T7): limites de memória re-tunados pros 5 serviços que rodam lá, e só esses
-# 5 sobem (otelcol/promtail são substituídos pelo Alloy na A1.Flex e ficam de
-# fora do `up` de produção). Esse arquivo base não muda para não afetar o dev
-# local já validado.
+# Specs, pré-requisitos e deploy em produção: ver docs/docker-infra.md#5 (ticket 07)
 
 name: oikos-obs
 

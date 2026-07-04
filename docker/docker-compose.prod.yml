@@ -1,18 +1,4 @@
-# Stack de produção — VM A1.Flex (2 OCPU/12GB). Migrado de oikos/api/docker-compose.prod.yml (T1),
-# ganhou web, nginx, e a camada de coleta de observabilidade (Alloy/cAdvisor/node-exporter).
-#
-# Orçamento de memória (ver 04-tech-plan.md §Abordagem Arquitetural):
-#   postgresql    512 MB     redis       128 MB     minio    256 MB
-#   api           512 MB     web         512 MB     nginx     64 MB
-#   cadvisor      128 MB     node-exporter 64 MB     alloy    128 MB
-#   Total: ~2.3GB de 12GB disponíveis.
-#
-# Pré-requisito: .env.prod preenchido (ver .env.prod.example) e certs/ com o par
-# cloudflare-origin.pem/.key — ambos materializados pelo deploy.yml (T9), nunca commitados.
-#
-# Só a `api` e o `web` são buildados a partir de contexto local (checkout dos repos irmãos);
-# em produção real, `image:` (GHCR) é o que efetivamente roda — `build:` é só pra
-# `docker compose build` local antes do primeiro deploy (ver T6, validação via Buildx).
+# Produção — Oracle A1.Flex. Specs/histórico/orçamento de memória: ver docs/docker-infra.md
 
 name: oikos-prod
 
@@ -31,16 +17,7 @@ services:
       POSTGRESQL_SHARED_BUFFERS: "128MB"
       POSTGRESQL_WORK_MEM: "4MB"
       POSTGRESQL_EFFECTIVE_CACHE_SIZE: "384MB"
-      # io_method=sync - achado em producao (2026-07-03): Postgres 18 usa
-      # io_method=worker por padrao (processos "io worker" dedicados), e o
-      # container ficou throttled ~99% dos periodos de CPU (cpu.stat/nr_throttled)
-      # rodando so com pg_isready de healthcheck, sem query real ativa. sync e
-      # o metodo classico (pre-PG18), sem os workers extras - testar se reduz
-      # o overhead antes de investigar mais fundo.
-      # Log de query nativo do Postgres avaliado e descartado (2026-07-03) -
-      # decisao consciente de usar o PRISMA_QUERY_LOG do api em vez disso, que
-      # ja correlaciona com traceId/spanId da requisicao (ver devops/.github/
-      # workflows/deploy.yml e api/src/lib/prisma.ts).
+      # io_method=sync - achado em produção, ver docs/docker-infra.md#6
       POSTGRESQL_EXTRA_FLAGS: "-c io_method=sync"
     volumes:
       - postgresql_data:/bitnami/postgresql
@@ -48,12 +25,8 @@ services:
     deploy:
       resources:
         limits:
-          # 1.0 -> 1.5: achado em producao (2026-07-03) que o Postgres ficava
-          # throttled quase o tempo todo no limite de 1.0 - os outros servicos
-          # (exceto cadvisor) usam bem menos que o proprio limite, entao ha
-          # folga real na VM (2 OCPU) pra dar mais cpu ao Postgres.
           memory: 512M
-          cpus: "1.5"
+          cpus: "1.5" # 1.0 -> 1.5, achado em produção - ver docs/docker-infra.md#5
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}"]
       interval: 10s
@@ -67,7 +40,7 @@ services:
       - .env.prod
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
-      REDIS_AOF_ENABLED: "yes" # persistência — pré-requisito do backup (T8)
+      REDIS_AOF_ENABLED: "yes" # persistência - pré-requisito do backup (ticket 08)
       REDIS_EXTRA_FLAGS: "--maxmemory 96mb --maxmemory-policy noeviction"
     volumes:
       - redis_data:/bitnami/redis/data
@@ -150,9 +123,7 @@ services:
       createbuckets:
         condition: service_completed_successfully
     healthcheck:
-      # 127.0.0.1 explicito, nao "localhost" - dentro do container "localhost" resolve
-      # pra ::1 (IPv6) primeiro, e o Fastify so escuta em IPv4 (0.0.0.0), causando
-      # falso-negativo de "connection refused" no healthcheck (achado no bootstrap real, T6)
+      # 127.0.0.1 explicito, nao "localhost" - ver docs/docker-infra.md#6 (ticket 06)
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3333/health"]
       interval: 15s
       timeout: 5s
@@ -198,11 +169,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /sys:/sys:ro
       - /var/lib/docker:/var/lib/docker:ro
-      # Sem isso, a factory de deteccao de container Docker do cAdvisor falha
-      # (Docker usa containerd por baixo) e ele so enxerga cgroups agregados
-      # (systemd/raw), sem nenhuma metrica por container - achado no
-      # bootstrap real (T7): container_memory_usage_bytes existia, mas sem
-      # nenhum label de container (nem "name", nem "container_label_*").
+      # containerd.sock - ver docs/docker-infra.md#6 (ticket 07)
       - /run/containerd/containerd.sock:/run/containerd/containerd.sock:ro
     deploy:
       resources:

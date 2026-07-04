@@ -55,6 +55,18 @@ Após iniciar um teste com `--out=experimental-prometheus-rw`, abra:
 
 O dashboard atualiza a cada 5 segundos. Observe VUs, RPS, error rate e latência P95 em tempo real.
 
+## Timeline dos Testes (`suite.ts`)
+
+Execução sequencial dos cinco cenários num único run:
+
+| Cenário | Início | Duração | Termina em |
+|---|---|---|---|
+| smoke | 0s | 2m | ~2m10s |
+| load | 2m30s | 13m | ~16m |
+| stress | 16m30s | 23m | ~40m |
+| spike | 40m30s | 5m30s | ~46m30s |
+| soak | 47m | 40m | ~87m |
+
 ## Interpretando resultados
 
 - **429 responses**: são esperados nos testes de stress e spike (rate-limiter intencional). Contados separadamente no counter `rate_limited_requests`, não computados como erros.
