@@ -1,5 +1,7 @@
 # T11 — `devops`: Deploy pipeline — desacoplar infra de release do app
 
+> **Evolução (2026-07-03)**: o job `infra-production` deste ticket virou `stack-production` no [T12](./12-deploy-stack-reconciliacao.md) — trigger ampliado (`paths-ignore` em vez de path-filter restrito) e reconciliação completa da stack, incluindo `api`/`web` na última release publicada.
+
 **Status**: **Pronta.** Validada de ponta a ponta: merge até `production` tocando só `nginx/` disparou `infra-production` sozinho (sem acionar `api-production`/`web-production`), o `--force-recreate` recriou `nginx`/`alloy` de verdade, e `https://www.oikos.company/` + `https://oikos.company/` confirmados via internet real servindo o Next.js (`200`, `x-powered-by: Next.js`, corpo idêntico entre os dois — `api.oikos.company` responde `application/json`, confirmando que não é mais a API). Motivada por um bug real de 2026-07-03: `www.oikos.company` caía na API porque faltava `server_name` no `nginx.conf` (corrigido em T5/T6), mas a correção ficou sem nenhum caminho de deploy — precisou de um `workflow_dispatch` forçado em `web` sem motivo real de rebuild, e mesmo assim o nginx não recarregava sozinho.
 
 ### Achado em produção (2026-07-03): reload/restart não atualiza bind mount de arquivo único
