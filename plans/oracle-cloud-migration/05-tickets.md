@@ -17,6 +17,7 @@ flowchart TD
     T9[T9 · devops — Deploy pipeline]
     T10[T10 · devops — Migração de dados + cutover]
     T11[T11 · devops — Deploy pipeline: desacoplar infra de release do app]
+    T12[T12 · devops — Deploy pipeline: reconciliação de stack independente do dispatcher]
 
     T4 --> T5
     T4 --> T6
@@ -29,6 +30,7 @@ flowchart TD
     T5 --> T10
     T8 --> T10
     T9 --> T11
+    T11 --> T12
 ```
 
 T2 (mobile) é independente de tudo — pode rodar em paralelo com qualquer outra ticket.
@@ -48,6 +50,7 @@ T2 (mobile) é independente de tudo — pode rodar em paralelo com qualquer outr
 | [T9](./tickets/09-deploy-pipeline.md) | `devops` — Deploy pipeline | **Pronta.** `workflow_dispatch` real testado com sucesso de ponta a ponta (build, backup, migration, deploy) | T1, T3, T6, T4 |
 | [T10](./tickets/10-migracao-dados-cutover.md) | `devops` — Migração de dados + cutover | Script e checklist de cutover escritos, execução real deferida pra revisão final (ticket 99) | T9, T5, T8 |
 | [T11](./tickets/11-deploy-pipeline-infra-only.md) | `devops` — Deploy pipeline: desacoplar infra de release do app | **Pronta.** Validada de ponta a ponta: push em `production` disparou `infra-production` sozinho, `--force-recreate` aplicou o fix, `www.oikos.company`/`oikos.company` confirmados servindo o Next.js (200, `x-powered-by: Next.js`) | T9 |
+| [T12](./tickets/12-deploy-stack-reconciliacao.md) | `devops` — Deploy pipeline: reconciliação de stack independente do dispatcher | Implementada — merge em `production` reconcilia a stack inteira (api/web na última release via API); falta validar o merge real | T9, T11 |
 
 ## Refinamento
 
