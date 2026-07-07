@@ -18,7 +18,7 @@ export default function (): void {
   const cats = http.get(`${BASE_URL}/v1/waste-categories`);
   check(cats, {
     "waste-categories: status 200": (r) => r.status === 200,
-    "waste-categories: tem dados": (r) => (r.json() as unknown[]).length > 0,
+    "waste-categories: tem dados": (r) => (r.json("categories") as unknown[]).length > 0,
   });
   sleep(0.3);
 
