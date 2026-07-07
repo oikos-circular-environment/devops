@@ -19,7 +19,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "sum(rate(oikos_messaging_process_duration_seconds_count[1m])) by (messaging_destination_name)",
+          "expr": "sum(rate(messaging_process_duration_seconds_count[1m])) by (messaging_destination_name)",
           "legendFormat": "{{messaging_destination_name}}",
           "refId": "A"
         }
@@ -39,7 +39,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(oikos_messaging_process_duration_seconds_bucket[5m])) by (le, messaging_destination_name)) * 1000",
+          "expr": "histogram_quantile(0.95, sum(rate(messaging_process_duration_seconds_bucket[5m])) by (le, messaging_destination_name)) * 1000",
           "legendFormat": "p95 {{messaging_destination_name}}",
           "refId": "A"
         }
@@ -59,7 +59,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "sum(rate(oikos_db_client_operation_duration_seconds_count{db_system=\"redis\"}[1m])) by (db_operation_name)",
+          "expr": "sum(rate(db_client_operation_duration_seconds_count{db_system=\"redis\"}[1m])) by (db_operation_name)",
           "legendFormat": "{{db_operation_name}}",
           "refId": "A"
         }

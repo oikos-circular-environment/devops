@@ -73,3 +73,22 @@ Execução sequencial dos cinco cenários num único run:
 - **P95 > 2s**: indica gargalo. Verifique no dashboard "Oikos API — Overview" se é CPU, pg pool wait ou query lenta.
 - **pg pool wait crescendo**: pool `max: 20` pode estar saturado. Considere aumentar.
 - **Heap crescendo durante soak**: potencial memory leak.
+
+## Rodando contra produção
+
+`.env.k6.prod` aponta `BASE_URL` para `https://api.oikos.company`. O Prometheus de produção não é público (só acessível via bastion pela `oikos-app`), então é preciso abrir um túnel SSH antes de rodar qualquer teste com push de métricas:
+
+```bash
+KEY=<caminho-da-chave>
+ssh -i "$KEY" -o ProxyCommand="ssh -i $KEY -W %h:%p deploy@134.65.229.35" -N -L 9090:localhost:9090 deploy@10.0.2.37
+```
+
+Com o túnel de pé, num outro terminal:
+
+```bash
+npx dotenv -e load-tests/.env.k6.prod -- k6 run -o experimental-prometheus-rw --tag testid=<nome> load-tests/load.ts
+```
+
+**Atenção**: `load.ts`, `stress.ts`, `soak.ts` e `suite.ts` criam denúncias reais via `POST /v1/complaints`, visíveis no mapa público, usando usuários fake `k6-load-{runId}-{i}@load.test`. Rodar contra produção exige limpar esses registros depois (usuários pelo domínio `@load.test` + denúncias associadas).
+
+O rate-limiter global (100 req/min por IP, `api/src/app.ts`) é atingido rapidamente mesmo em carga moderada — isso é esperado e reflete o comportamento real da API em produção, não uma limitação de infra.
