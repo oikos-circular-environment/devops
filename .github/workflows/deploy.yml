@@ -429,3 +429,11 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
             "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --force-recreate --no-deps nginx alloy"
+
+      # Bastion pela A1.Flex - E2.1.Micro nao tem IP publico (ver docs/docker-infra.md#6)
+      - name: Sincroniza e reconcilia a stack de observabilidade na E2.1.Micro
+        run: |
+          scp -i ~/.ssh/deploy_key -o ProxyJump="deploy@${{ vars.VM_HOST }}" -r observability \
+            deploy@"${{ vars.OBSERVABILITY_PRIVATE_IP }}":/opt/oikos/
+          ssh -i ~/.ssh/deploy_key -o ProxyJump="deploy@${{ vars.VM_HOST }}" deploy@"${{ vars.OBSERVABILITY_PRIVATE_IP }}" \
+            "cd /opt/oikos/observability && docker compose -f docker-compose.observability.yml -f docker-compose.observability.prod.yml up -d prometheus loki tempo grafana alertmanager"
