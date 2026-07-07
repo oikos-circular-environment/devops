@@ -33,6 +33,99 @@ Shape filtra a arquitetura automaticamente (`A1.Flex` = ARM, `E2.1.Micro` = x86)
 - **Portas de observabilidade restritas à subnet pública** `(ver ticket 07)`/`(ver ticket 04)`: só a partir de `10.0.1.0/24` (onde roda o Alloy, na A1.Flex), nunca da internet. Sem isso, a OCI bloqueia esse tráfego mesmo sendo intra-VCN.
 - **`dns_label` da subnet pública mantido igual ao original** (`oikossub`) de propósito: é um campo imutável (`ForceNew`) na OCI — mudar o valor destruiria/recriaria a subnet mesmo com um `moved` block preservando o endereço do recurso no state.
 
+## Endereços dos serviços (acesso interno e externo)
+
+Referência rápida de como chegar em cada serviço rodando nas VMs — consolidado a partir de `docker-compose.prod.yml`, `nginx.conf` e `network/main.tf` (`infra/terraform/`), sem informação nova além do que já está nesses arquivos.
+
+| VM | IP público | IP privado |
+|---|---|---|
+| `oikos-app` (A1.Flex) | `134.65.229.35` | `10.0.1.196` |
+| `oikos-observability` (E2.1.Micro) | — (sem IP público, por design) | `10.0.2.37` |
+
+A `E2.1.Micro` não tem IP público, então SSH só via bastion pela `A1.Flex` (`ssh -J` não propaga a identidade explícita `-i` pro salto, por isso `ProxyCommand` explícito):
+
+```bash
+ssh -i <chave> -o ProxyCommand="ssh -i <chave> -W %h:%p deploy@134.65.229.35" deploy@10.0.2.37
+```
+
+| Serviço | Endereço interno (rede Docker) | Endereço externo | Como acessar hoje |
+|---|---|---|---|
+| postgresql | `postgresql:5432` | nenhum (porta não publicada no host) | `docker compose exec postgresql psql -U $POSTGRES_USER -d $POSTGRES_DB` via SSH, **ou** túnel SSH (Beekeeper/DBeaver/TablePlus) direto pro IP interno do container — ver nota abaixo |
+| redis | `redis:6379` | nenhum | `docker compose exec redis redis-cli -a $REDIS_PASSWORD` via SSH, **ou** túnel SSH direto pro IP interno do container — ver nota abaixo |
+| minio (S3 API) | `minio:9000` | nenhum, nunca exposto (comentário explícito em `nginx.conf`) | SSH na A1.Flex + `docker compose exec` ou `mc` dentro do container |
+| minio (console) | `minio:9001` | `https://minio.oikos.company` (proxied) | Browser, login com `MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY` |
+| api | `api:3333` | `https://api.oikos.company` (proxied) | Browser/HTTP client |
+| web | `web:3000` | `https://oikos.company` / `https://www.oikos.company` (proxied) | Browser |
+| nginx | — | `443` na A1.Flex, atrás do proxy Cloudflare | — |
+| prometheus | `10.0.2.37:9090` | nenhum (Security List só permite `10.0.1.0/24`) | SSH bastion na E2.1.Micro |
+| loki | `10.0.2.37:3100` | nenhum (só `10.0.1.0/24`) | SSH bastion na E2.1.Micro |
+| tempo | `10.0.2.37:4317` (gRPC OTLP) | nenhum (só `10.0.1.0/24`) | SSH bastion na E2.1.Micro |
+| grafana | `10.0.2.37:3000` | `https://grafana.oikos.company` (proxied) | Browser, login próprio |
+| alertmanager | `10.0.2.37:9093` | nenhum, nem da subnet pública (sem regra na Security List) | SSH bastion na E2.1.Micro |
+
+Credenciais de `postgresql`/`redis`/`minio` ficam em `.env.prod` na VM (`POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_DB`, `REDIS_PASSWORD`, `MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY` — nomes das variáveis, os valores nunca ficam neste doc).
+
+Para instruções campo a campo de como conectar um gerenciador de banco GUI (Beekeeper/DBeaver/TablePlus) via túnel SSH, ver seção abaixo.
+
+### Conectando um gerenciador de banco (Beekeeper Studio) via túnel SSH
+
+**Passo 1 — obter o IP interno do container** (rodar via SSH na A1.Flex; refazer após cada redeploy):
+
+Postgres:
+```bash
+ssh deploy@134.65.229.35 "docker inspect oikos-prod-postgresql-1 --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'"
+```
+
+Redis:
+```bash
+ssh deploy@134.65.229.35 "docker inspect oikos-prod-redis-1 --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'"
+```
+
+**Postgres** — IP interno atual: `172.18.0.3`.
+
+**Passo 2 — preencher o formulário de conexão** (Beekeeper tem túnel SSH nativo pra Postgres; mesma lógica pra DBeaver/TablePlus):
+
+| Campo | Valor |
+|---|---|
+| Connection Type | `Postgres` |
+| Authentication Method | `Username / Password` |
+| Connection Mode | `Host and Port` |
+| Host | `172.18.0.3` |
+| Port | `5432` |
+| Enable SSL | `Off` |
+| User | `$POSTGRES_USER` (valor em `.env.prod`) |
+| Password | `$POSTGRES_PASSWORD` |
+| Default Database | `$POSTGRES_DB` |
+| SSH Tunnel | `On` |
+| SSH Hostname | `134.65.229.35` |
+| Port (SSH) | `22` |
+| SSH Authentication | `Key File` |
+| SSH Username | `deploy` |
+| Private Key File | caminho local da chave privada do usuário `deploy` (a mesma usada em `SSH_DEPLOY_KEY`, ver `docs/terraform-cloud-credentials-setup.md` §9.1) |
+| Key File Passphrase | passphrase da chave, se houver |
+| Keepalive Interval | `60` |
+
+**Rodando os seeds contra produção**: `api/scripts/seed-prod.ts` (`npm run seed:prod`, no repo `api`) automatiza o fluxo acima — descobre o IP do container, lê as credenciais do `.env.prod` na VM via SSH, abre o túnel e roda `npm run seed` com o `DATABASE_URL` correto, fechando o túnel ao final. Uso esperado: manutenção pontual ou povoamento de infra nova, não o fluxo normal de dev (que roda contra o Postgres local). Sem guarda contra os usuários fake do `seedUsers` — fazem parte do povoamento de dados do MVP.
+
+```bash
+DEST_SSH_HOST=134.65.229.35 DEST_SSH_KEY=<caminho-da-chave> npm run seed:prod
+```
+
+**Redis** — IP interno atual: `172.18.0.2`. O Beekeeper não tem campo de túnel SSH pra conexões Redis, então o túnel precisa ser aberto manualmente antes de conectar:
+
+```bash
+ssh -L 6379:172.18.0.2:6379 deploy@134.65.229.35
+```
+
+Deixar esse terminal aberto (o túnel some se ele fechar) e, no Beekeeper, criar a conexão Redis com:
+
+| Campo | Valor |
+|---|---|
+| Connection Type | `Redis` |
+| Host | `localhost` |
+| Port | `6379` |
+| Password | `$REDIS_PASSWORD` (valor em `.env.prod`) |
+
 ## Terraform Cloud (state remoto)
 
 - **Free tier "enhanced"** (vigente desde 31/03/2026, substituiu o free plan legado): até **500 recursos gerenciados grátis**, usuários ilimitados, 1 run concorrente, SSO incluso.
