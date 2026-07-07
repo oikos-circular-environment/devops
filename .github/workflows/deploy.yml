@@ -435,7 +435,7 @@ jobs:
         env:
           BASTION: ssh -i ~/.ssh/deploy_key -W %h:%p deploy@${{ vars.VM_HOST }}
         run: |
-          scp -i ~/.ssh/deploy_key -o ProxyCommand="$BASTION" -r observability \
+          scp -i ~/.ssh/deploy_key -o ProxyCommand="$BASTION" -o StrictHostKeyChecking=accept-new -r observability \
             deploy@"${{ vars.OBSERVABILITY_PRIVATE_IP }}":/opt/oikos/
-          ssh -i ~/.ssh/deploy_key -o ProxyCommand="$BASTION" deploy@"${{ vars.OBSERVABILITY_PRIVATE_IP }}" \
+          ssh -i ~/.ssh/deploy_key -o ProxyCommand="$BASTION" -o StrictHostKeyChecking=accept-new deploy@"${{ vars.OBSERVABILITY_PRIVATE_IP }}" \
             "cd /opt/oikos/observability && docker compose -f docker-compose.observability.yml -f docker-compose.observability.prod.yml up -d prometheus loki tempo grafana alertmanager"
