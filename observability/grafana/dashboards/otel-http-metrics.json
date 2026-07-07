@@ -17,7 +17,7 @@
         "label": "Método HTTP",
         "type": "query",
         "datasource": { "type": "prometheus", "uid": "prometheus" },
-        "query": "label_values(oikos_http_server_duration_milliseconds_count, http_method)",
+        "query": "label_values(http_server_duration_milliseconds_count, http_method)",
         "multi": true,
         "includeAll": true,
         "allValue": ".*",
@@ -38,7 +38,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "avg by (http_route, http_method) (\n  rate(oikos_http_server_duration_milliseconds_sum{http_method=~\"$method\"}[$__rate_interval])\n  /\n  rate(oikos_http_server_duration_milliseconds_count{http_method=~\"$method\"}[$__rate_interval])\n)",
+          "expr": "avg by (http_route, http_method) (\n  rate(http_server_duration_milliseconds_sum{http_method=~\"$method\"}[$__rate_interval])\n  /\n  rate(http_server_duration_milliseconds_count{http_method=~\"$method\"}[$__rate_interval])\n)",
           "legendFormat": "{{http_method}} {{http_route}}",
           "refId": "A"
         }
@@ -68,7 +68,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "sum by (http_route, http_method) (increase(oikos_http_server_duration_milliseconds_count{http_method=~\"$method\"}[$__range]))",
+          "expr": "sum by (http_route, http_method) (increase(http_server_duration_milliseconds_count{http_method=~\"$method\"}[$__range]))",
           "legendFormat": "{{http_method}} {{http_route}}",
           "refId": "A",
           "instant": true
@@ -93,7 +93,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "sum by (http_route, http_method) (increase(oikos_http_server_duration_milliseconds_sum{http_method=~\"$method\"}[$__range]))",
+          "expr": "sum by (http_route, http_method) (increase(http_server_duration_milliseconds_sum{http_method=~\"$method\"}[$__range]))",
           "legendFormat": "{{http_method}} {{http_route}}",
           "refId": "A",
           "instant": true
@@ -118,7 +118,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "sum by (http_route, http_method) (rate(oikos_http_server_duration_milliseconds_count{http_method=~\"$method\"}[$__rate_interval]))",
+          "expr": "sum by (http_route, http_method) (rate(http_server_duration_milliseconds_count{http_method=~\"$method\"}[$__rate_interval]))",
           "legendFormat": "{{http_method}} {{http_route}}",
           "refId": "A"
         }
@@ -140,12 +140,12 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "sum by (http_route) (rate(oikos_http_server_duration_milliseconds_count{http_method=~\"$method\", http_status_code=~\"5..\"}[$__rate_interval]))",
+          "expr": "sum by (http_route) (rate(http_server_duration_milliseconds_count{http_method=~\"$method\", http_status_code=~\"5..\"}[$__rate_interval]))",
           "legendFormat": "5xx {{http_route}}",
           "refId": "A"
         },
         {
-          "expr": "sum by (http_route) (rate(oikos_http_server_duration_milliseconds_count{http_method=~\"$method\", http_status_code=~\"4..\"}[$__rate_interval]))",
+          "expr": "sum by (http_route) (rate(http_server_duration_milliseconds_count{http_method=~\"$method\", http_status_code=~\"4..\"}[$__rate_interval]))",
           "legendFormat": "4xx {{http_route}}",
           "refId": "B"
         }
@@ -167,49 +167,49 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "sum by (http_method, http_route) (increase(oikos_http_server_duration_milliseconds_count{http_method=~\"$method\"}[$__range]))",
+          "expr": "sum by (http_method, http_route) (increase(http_server_duration_milliseconds_count{http_method=~\"$method\"}[$__range]))",
           "legendFormat": "",
           "refId": "A",
           "instant": true,
           "format": "table"
         },
         {
-          "expr": "sum by (http_method, http_route) (increase(oikos_http_server_duration_milliseconds_count{http_method=~\"$method\", http_status_code=~\"2..\"}[$__range]))",
+          "expr": "sum by (http_method, http_route) (increase(http_server_duration_milliseconds_count{http_method=~\"$method\", http_status_code=~\"2..\"}[$__range]))",
           "legendFormat": "",
           "refId": "B",
           "instant": true,
           "format": "table"
         },
         {
-          "expr": "sum by (http_method, http_route) (increase(oikos_http_server_duration_milliseconds_count{http_method=~\"$method\", http_status_code=~\"3..\"}[$__range]))",
+          "expr": "sum by (http_method, http_route) (increase(http_server_duration_milliseconds_count{http_method=~\"$method\", http_status_code=~\"3..\"}[$__range]))",
           "legendFormat": "",
           "refId": "C",
           "instant": true,
           "format": "table"
         },
         {
-          "expr": "sum by (http_method, http_route) (increase(oikos_http_server_duration_milliseconds_count{http_method=~\"$method\", http_status_code=~\"4..\"}[$__range]))",
+          "expr": "sum by (http_method, http_route) (increase(http_server_duration_milliseconds_count{http_method=~\"$method\", http_status_code=~\"4..\"}[$__range]))",
           "legendFormat": "",
           "refId": "D",
           "instant": true,
           "format": "table"
         },
         {
-          "expr": "sum by (http_method, http_route) (increase(oikos_http_server_duration_milliseconds_count{http_method=~\"$method\", http_status_code=~\"5..\"}[$__range]))",
+          "expr": "sum by (http_method, http_route) (increase(http_server_duration_milliseconds_count{http_method=~\"$method\", http_status_code=~\"5..\"}[$__range]))",
           "legendFormat": "",
           "refId": "E",
           "instant": true,
           "format": "table"
         },
         {
-          "expr": "sum by (http_method, http_route) (increase(oikos_http_server_duration_milliseconds_count{http_method=~\"$method\", http_status_code=~\"4..|5..\"}[$__range]))",
+          "expr": "sum by (http_method, http_route) (increase(http_server_duration_milliseconds_count{http_method=~\"$method\", http_status_code=~\"4..|5..\"}[$__range]))",
           "legendFormat": "",
           "refId": "F",
           "instant": true,
           "format": "table"
         },
         {
-          "expr": "sum by (http_method, http_route) (increase(oikos_http_server_duration_milliseconds_sum{http_method=~\"$method\"}[$__range]))",
+          "expr": "sum by (http_method, http_route) (increase(http_server_duration_milliseconds_sum{http_method=~\"$method\"}[$__range]))",
           "legendFormat": "",
           "refId": "G",
           "instant": true,
