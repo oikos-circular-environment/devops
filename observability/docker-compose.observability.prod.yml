@@ -2,12 +2,14 @@
 
 services:
   prometheus:
+    restart: unless-stopped
     deploy:
       resources:
         limits:
           memory: 200M
 
   loki:
+    restart: unless-stopped
     deploy:
       resources:
         limits:
@@ -17,21 +19,25 @@ services:
     # OTLP gRPC exposta pro host - Alloy da A1.Flex alcanca via IP privado (ver docs/docker-infra.md#4)
     ports:
       - "4317:4317"
+    restart: unless-stopped
     deploy:
       resources:
         limits:
-          memory: 120M
+          # 120M -> 256M: ver docs/docker-infra.md#6
+          memory: 256M
 
   grafana:
     # anonymous-auth desabilitado em producao - ver docs/docker-infra.md#4 (ticket 05)
     environment:
       GF_AUTH_ANONYMOUS_ENABLED: "false"
+    restart: unless-stopped
     deploy:
       resources:
         limits:
           memory: 180M
 
   alertmanager:
+    restart: unless-stopped
     deploy:
       resources:
         limits:

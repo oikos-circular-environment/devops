@@ -1,5 +1,7 @@
 # Ticket 13 — Painel Grafana de runtime Node.js (GC / event loop)
 
+**Status**: Implementado (2026-07-07) — `observability/grafana/dashboards/node-runtime.json`. Nomes reais confirmados direto no Prometheus de produção antes de escrever o JSON (label `job`, não `service_name` — ver nota abaixo); labels de atributo confirmados como `v8js_gc_type`, `v8js_heap_space_name`, `v8js_resource_type`.
+
 ## Contexto
 
 `api` e `web` agora emitem métricas de runtime do Node/V8 via `@opentelemetry/instrumentation-runtime-node` (ver PRs de instrumentação em `api`/`web`), exportadas pro Alloy junto com o resto do OTLP já existente. O objetivo é conseguir responder, na próxima vez que aparecer um pico de CPU no dashboard "Container Detail" (`infra-container.json`), se ele veio de GC, de bloqueio do event loop, ou de tráfego real — hoje esse dashboard só mostra o sintoma (cgroup/cAdvisor), nunca a causa dentro do runtime.

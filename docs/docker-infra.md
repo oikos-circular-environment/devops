@@ -76,10 +76,10 @@ docker compose \
 |---|---|---|
 | prometheus | 512 MB | 200 MB |
 | loki | 256 MB | 150 MB |
-| tempo | 256 MB | 120 MB |
+| tempo | 256 MB | 256 MB `(ver #6)` |
 | grafana | 256 MB | 180 MB |
 | alertmanager | 64 MB | 25 MB |
-| **Total (produção)** | | **~675MB de 1GB — com folga real pro SO/Docker** |
+| **Total (produção)** | | **~811MB de 1GB — folga menor, mas real; swap (8-10GB, ver cloud-init) como rede de segurança pra picos** |
 
 ### Stack de observabilidade — dev local (~1.7GB)
 
@@ -93,6 +93,7 @@ Pré-requisito: `cp observability/.env.observability.example observability/.env.
 - **cAdvisor precisa do mount de `containerd.sock`** `(ver ticket 07)`: sem isso, a factory de detecção de container Docker do cAdvisor falha (Docker usa containerd por baixo) e ele só enxerga cgroups agregados (systemd/raw), sem nenhuma métrica por container — achado no bootstrap real: `container_memory_usage_bytes` existia, mas sem nenhum label de container (nem `name`, nem `container_label_*`).
 - **`127.0.0.1` explícito no healthcheck da `api`, não `localhost`** `(ver ticket 06)`: dentro do container, `localhost` resolve pra `::1` (IPv6) primeiro, e o Fastify só escuta em IPv4 (`0.0.0.0`), causando falso-negativo de "connection refused" no healthcheck.
 - **Bind-mount de arquivo único exige `--force-recreate`** `(ver ticket 11)`: `nginx.conf` e `alloy-prod.alloy` são montados como bind mount de arquivo único no `docker-compose.prod.yml`. `sed -i` (usado no `scp` do deploy) reescreve via arquivo temporário + rename, trocando o inode — um bind mount de arquivo único fica preso no inode antigo, então nem `nginx -s reload` nem `docker compose restart` enxergam o conteúdo novo (só recriar o container remonta o bind). Achado em produção: o fix do `www.oikos.company` não pegou mesmo depois do deploy, porque o container do nginx nunca tinha sido recriado desde o bootstrap.
+- **Tempo ficou morto 4 dias sem ninguém notar** (2026-07-07): OOM-killed (anon-rss ~110MB contra um teto de 120MB) recebendo trace de só o `api`; `web` passou a mandar trace também e o teto já não tinha folga nenhuma pro pico. Nenhum serviço do `docker-compose.observability.yml` tem `restart` definido no arquivo base (todos `"no"`, apropriado pra dev local efêmero) — o override de produção não corrigia isso pra nenhum dos 5 serviços, então o Tempo simplesmente nunca voltou. Só foi descoberto quando o Grafana passou a devolver 502 (Cloudflare) ao consultar trace. Fix: `restart: unless-stopped` nos 5 serviços no override de produção (`docker-compose.observability.prod.yml`), igual ao padrão já usado no `docker-compose.prod.yml` principal, + memória do Tempo 120MB → 256MB.
 
 ## 7. Backup & Migração de Dados
 
