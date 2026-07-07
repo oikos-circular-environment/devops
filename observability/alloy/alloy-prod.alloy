@@ -1,7 +1,7 @@
 // Config do Alloy — decisões/env vars: ver docs/docker-infra.md#4
 
-// ── OTLP: recebe traces + métricas + logs direto da aplicação (api) ────────
-// api aponta OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+// ── OTLP: recebe traces + métricas + logs direto da aplicação (api + web) ────────
+// api e web apontam OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 otelcol.receiver.otlp "app" {
 	http {
 		endpoint = "0.0.0.0:4318"
