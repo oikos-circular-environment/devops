@@ -9,13 +9,14 @@ cloudflare/.env.cloudflare
 docker/certs/
 
 # Dados gerados pelos scripts de seed
-data/*.json
+# data/*.json
 
 # Volumes Docker persistidos localmente
 observability/prometheus/
 observability/grafana/data/
 observability/loki/chunks/
 observability/tempo/blocks/
+docker/structurizr/data/
 
 # Terraform (state fica remoto no Terraform Cloud, nunca local)
 infra/terraform/**/.terraform/
