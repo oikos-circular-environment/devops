@@ -1,0 +1,126 @@
+{
+  "name": "Oikos OCI (local)",
+  "description": "Tema local para o workspace Oikos. Cobre dois grupos de icones: (1) o subconjunto do tema oficial Oracle Cloud Infrastructure do Structurizr (oracle-cloud-infrastructure-2023.04.01), baixado de static.structurizr.com para nao depender desse servico apos o EOL de 30/09/2026; (2) icones de tecnologia (linguagens, bancos, SaaS) obtidos via thesvg.org e convertidos de SVG para PNG com resvg, pois o Structurizr so aceita PNG/JPG em icones de elemento.",
+  "elements": [
+    {
+      "tag": "Oracle Cloud Infrastructure - Buckets",
+      "stroke": "#005968",
+      "color": "#005968",
+      "icon": "Buckets.png"
+    },
+    {
+      "tag": "Oracle Cloud Infrastructure - Flex Virtual Machine",
+      "stroke": "#2c5967",
+      "color": "#2c5967",
+      "icon": "Flex Virtual Machine VM.png"
+    },
+    {
+      "tag": "Oracle Cloud Infrastructure - Burstable Virtual Machine",
+      "stroke": "#2c5967",
+      "color": "#2c5967",
+      "icon": "Burstable Virtual Machine VM.png"
+    },
+    {
+      "tag": "Oracle Cloud Infrastructure - Virtual Cloud Network",
+      "stroke": "#bb5127",
+      "color": "#bb5127",
+      "icon": "Virtual Cloud Network VCN_red.png"
+    },
+    {
+      "tag": "Technology - Expo",
+      "stroke": "#000020",
+      "color": "#000020",
+      "icon": "Expo.png"
+    },
+    {
+      "tag": "Technology - Next.js",
+      "stroke": "#000000",
+      "color": "#000000",
+      "icon": "NextJS.png"
+    },
+    {
+      "tag": "Technology - Nginx",
+      "stroke": "#009639",
+      "color": "#009639",
+      "icon": "Nginx.png"
+    },
+    {
+      "tag": "Technology - Node.js",
+      "stroke": "#5FA04E",
+      "color": "#5FA04E",
+      "icon": "NodeJS.png"
+    },
+    {
+      "tag": "Technology - PostgreSQL",
+      "stroke": "#4169E1",
+      "color": "#4169E1",
+      "icon": "PostgreSQL.png"
+    },
+    {
+      "tag": "Technology - Redis",
+      "stroke": "#FF4438",
+      "color": "#FF4438",
+      "icon": "Redis.png"
+    },
+    {
+      "tag": "Technology - MinIO",
+      "stroke": "#C72E49",
+      "color": "#C72E49",
+      "icon": "MinIO.png"
+    },
+    {
+      "tag": "Technology - Grafana",
+      "stroke": "#F46800",
+      "color": "#F46800",
+      "icon": "Grafana.png"
+    },
+    {
+      "tag": "Technology - GitHub",
+      "stroke": "#181717",
+      "color": "#181717",
+      "icon": "GitHub.png"
+    },
+    {
+      "tag": "Technology - GitHub Actions",
+      "stroke": "#2088FF",
+      "color": "#2088FF",
+      "icon": "GitHub Actions.png"
+    },
+    {
+      "tag": "Technology - Cloudflare",
+      "stroke": "#F38020",
+      "color": "#F38020",
+      "icon": "Cloudflare.png"
+    },
+    {
+      "tag": "Technology - Terraform",
+      "stroke": "#844FBA",
+      "color": "#844FBA",
+      "icon": "Terraform.png"
+    },
+    {
+      "tag": "Technology - Prometheus",
+      "stroke": "#E6522C",
+      "color": "#E6522C",
+      "icon": "Prometheus.png"
+    },
+    {
+      "tag": "Technology - App Store",
+      "stroke": "#0D96F6",
+      "color": "#0D96F6",
+      "icon": "App Store.png"
+    },
+    {
+      "tag": "Technology - Google Play",
+      "stroke": "#414141",
+      "color": "#414141",
+      "icon": "Google Play.png"
+    },
+    {
+      "tag": "Technology - Docker",
+      "stroke": "#2496ED",
+      "color": "#2496ED",
+      "icon": "Docker.png"
+    }
+  ]
+}

@@ -16,7 +16,10 @@ observability/prometheus/
 observability/grafana/data/
 observability/loki/chunks/
 observability/tempo/blocks/
-docker/structurizr/data/
+
+# Structurizr: mantem o DSL e o tema versionados; ignora so o runtime/cache local
+docker/structurizr/data/.structurizr/
+docker/structurizr/data/workspace.json
 
 # Terraform (state fica remoto no Terraform Cloud, nunca local)
 infra/terraform/**/.terraform/
