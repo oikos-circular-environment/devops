@@ -121,6 +121,18 @@
       "stroke": "#2496ED",
       "color": "#2496ED",
       "icon": "Docker.png"
+    },
+    {
+      "tag": "Technology - Google",
+      "stroke": "#4285F4",
+      "color": "#4285F4",
+      "icon": "Google.png"
+    },
+    {
+      "tag": "Technology - Native Artifact Mobile",
+      "stroke": "#6B7280",
+      "color": "#6B7280",
+      "icon": "Cog.png"
     }
   ]
 }

@@ -8,7 +8,7 @@ workspace "Oikos" "Plataforma colaborativa para a economia circular de residuos"
         dev = person "Desenvolvedor" "Faz push para a branch production"
 
         oikos = softwareSystem "Oikos" "API + Web + Mobile + dados de producao" {
-            mobileApp = container "Mobile App" "Instalado no dispositivo do usuario" "React Native / Expo" "Technology - Expo"
+            mobileApp = container "Mobile App" "Instalado no dispositivo do usuario" "React Native / Expo" "Technology - Native Artifact Mobile"
             web = container "web" "Pagina inicial e area administrativa" "Next.js" "Technology - Next.js"
             nginx = container "nginx" "Roteia por hostname, termina TLS" "Reverse Proxy" "Technology - Nginx"
 
@@ -54,31 +54,35 @@ workspace "Oikos" "Plataforma colaborativa para a economia circular de residuos"
         oikos.api.queueComp -> oikos.redis "Enfileira/consome jobs" "Redis protocol (BullMQ)"
         oikos.api.prismaComp -> oikos.postgresql "Le/escreve" "SQL"
         oikos.api -> oikos.observability "Envia metricas/logs/traces" "OTel"
+        oikos.web -> oikos.observability "Envia metricas/logs/traces" "OTel"
 
         dev -> oikos.mobileApp "git push (branch production)" "Git/SSH"
 
         prod = deploymentEnvironment "Production" {
-            gh = deploymentNode "GitHub" "" "GitHub Actions" {
-                ghWorkflow = infrastructureNode "build-and-submit.yml" "Quality checks + build + submit" "EAS Workflow" "Technology - GitHub Actions"
-                deployJob = infrastructureNode "deploy.yml" "Build arm64 (Buildx+QEMU), push GHCR, SSH deploy" "GitHub Actions Workflow" "Technology - GitHub Actions"
-                ghcr = infrastructureNode "GHCR" "Imagens privadas api/web" "GitHub Container Registry" "Technology - GitHub"
-            }
+            mobile = deploymentNode "Mobile" "Pipeline de build, distribuicao e telemetria do app mobile" "" {
+                gh = deploymentNode "GitHub" "" "Git" {
+                    repoProd = infrastructureNode "branch production" "Codigo-fonte do app mobile; branch monitorada pela integracao do Expo com o GitHub" "Git" "Technology - GitHub"
+                    deployJob = infrastructureNode "deploy.yml" "Build arm64 (Buildx+QEMU), push GHCR, SSH deploy" "GitHub Actions Workflow" "Technology - GitHub Actions"
+                    ghcr = infrastructureNode "GHCR" "Imagens privadas api/web" "GitHub Container Registry" "Technology - GitHub"
+                }
 
-            easCloud = deploymentNode "EAS Cloud" "Build, submit e OTA update do app mobile" "Expo Application Services" {
-                easBuild = infrastructureNode "EAS Build" "Compila .ipa (iOS) e .aab (Android), profile production" "EAS" "Technology - Expo"
-                easSubmit = infrastructureNode "EAS Submit" "Envia binario para as lojas" "EAS" "Technology - Expo"
-                easUpdate = infrastructureNode "EAS Update" "Publica atualizacao OTA (channel production)" "EAS" "Technology - Expo"
-            }
+                easCloud = deploymentNode "EAS Cloud" "Build e submit do app mobile" "Expo Application Services" {
+                    easWorkflow = infrastructureNode "EAS Workflow" "Quality checks: lint, format, tests" "build-and-submit.yml" "Technology - Expo"
+                    easBuild = infrastructureNode "EAS Build" "Compila .ipa (iOS) e .aab (Android), profile production" "EAS" "Technology - Expo"
+                    easSubmit = infrastructureNode "EAS Submit" "Envia binario para as lojas" "EAS" "Technology - Expo"
+                    easObserve = infrastructureNode "EAS Observe" "Monitora crashes, performance (cold/warm start, TTI) e adocao de updates em producao" "EAS" "Technology - Expo"
+                }
 
-            appStore = deploymentNode "Apple App Store Connect" "Distribuicao iOS + TestFlight" "SaaS" {
-                ascConnect = infrastructureNode "App Store Connect" "ascAppId 6786017565" "App Store Connect API" "Technology - App Store"
-            }
-            playConsole = deploymentNode "Google Play Console" "Distribuicao Android" "SaaS" {
-                playTrack = infrastructureNode "Play Console" "track alpha" "Google Play Developer API" "Technology - Google Play"
-            }
+                appStore = deploymentNode "Apple App Store Connect" "Distribuicao iOS + TestFlight" "SaaS" {
+                    ascConnect = infrastructureNode "App Store Connect" "ascAppId 6786017565" "App Store Connect API" "Technology - App Store"
+                }
+                playConsole = deploymentNode "Google Play Console" "Distribuicao Android" "SaaS" {
+                    playTrack = infrastructureNode "Play Console" "track alpha" "Google Play Developer API" "Technology - Google Play"
+                }
 
-            userDevice = deploymentNode "Dispositivo do Usuario" "iOS / Android / Browser" {
-                appInstance = containerInstance oikos.mobileApp
+                userDevice = deploymentNode "Dispositivo do Usuario" "iOS / Android / Browser" {
+                    appInstance = containerInstance oikos.mobileApp
+                }
             }
 
             cf = deploymentNode "Cloudflare Edge" "DNS, TLS e roteamento de borda" "CDN / Edge Network" {
@@ -103,7 +107,7 @@ workspace "Oikos" "Plataforma colaborativa para a economia circular de residuos"
                             pgD = containerInstance oikos.postgresql
                             redisD = containerInstance oikos.redis
                             minioD = containerInstance oikos.minio
-                            cadvisorD = infrastructureNode "cAdvisor" "Coleta metricas de containers" "cAdvisor"
+                            cadvisorD = infrastructureNode "cAdvisor" "Coleta metricas de containers" "cAdvisor" "Technology - Google"
                             nodeExporterD = infrastructureNode "node-exporter" "Coleta metricas do host" "Prometheus node_exporter" "Technology - Prometheus"
                             alloyD = infrastructureNode "Alloy" "Agente unificado de telemetria (substitui otelcol em producao)" "Grafana Alloy" "Technology - Grafana"
                         }
@@ -125,20 +129,22 @@ workspace "Oikos" "Plataforma colaborativa para a economia circular de residuos"
                 }
             }
 
-            gh.ghWorkflow -> easCloud.easBuild "Dispara build (android, ios)" "GitHub Actions -> EAS API"
-            easCloud.easBuild -> easCloud.easSubmit "Build concluido" "Internal (EAS)"
-            easCloud.easSubmit -> appStore.ascConnect "Submit iOS" "App Store Connect API"
-            easCloud.easSubmit -> playConsole.playTrack "Submit Android" "Google Play Developer API"
-            easCloud.easBuild -> easCloud.easUpdate "Publica OTA apos build" "Internal (EAS)"
-            easCloud.easUpdate -> userDevice.appInstance "Entrega atualizacao OTA (channel production)" "Expo Updates protocol (HTTPS)"
+            mobile.gh.repoProd -> mobile.easCloud.easWorkflow "Dispara workflow (push)" "Integracao GitHub do Expo (webhook)"
+            mobile.easCloud.easWorkflow -> mobile.easCloud.easBuild "Quality checks aprovados" "Internal (EAS)"
+            mobile.easCloud.easBuild -> mobile.easCloud.easSubmit "Build concluido" "Internal (EAS)"
+            mobile.easCloud.easSubmit -> mobile.appStore.ascConnect "Submit iOS" "App Store Connect API"
+            mobile.easCloud.easSubmit -> mobile.playConsole.playTrack "Submit Android" "Google Play Developer API"
+            mobile.appStore.ascConnect -> mobile.userDevice.appInstance "Distribui app (instalacao/atualizacao)" "App Store / TestFlight"
+            mobile.playConsole.playTrack -> mobile.userDevice.appInstance "Distribui app (instalacao/atualizacao)" "Google Play"
+            mobile.userDevice.appInstance -> mobile.easCloud.easObserve "Envia metricas de uso, performance e crashes" "expo-observe SDK (HTTPS)"
 
-            userDevice.appInstance -> cf.cfProxy "Acessa" "HTTPS"
+            mobile.userDevice.appInstance -> cf.cfProxy "Acessa" "HTTPS"
             cf.cfProxy -> oracle.vcn.vmA1.dockerProd.nginxD "Proxied" "443, Security List restrita aos IPs do Cloudflare"
             oracle.vcn.vmA1.dockerProd.cadvisorD -> oracle.vcn.vmA1.dockerProd.alloyD "Expoe metricas de containers" "cAdvisor /metrics"
             oracle.vcn.vmA1.dockerProd.nodeExporterD -> oracle.vcn.vmA1.dockerProd.alloyD "Expoe metricas de host" "node_exporter /metrics"
             oracle.vcn.vmA1.dockerProd.alloyD -> oracle.vcn.vmE2.dockerObs.obsD "Envia metricas/logs/traces" "remote_write / push / OTLP gRPC, IP privado da VCN"
-            gh.deployJob -> gh.ghcr "Push imagem" "Docker push (OCI Registry)"
-            gh.deployJob -> oracle.vcn.vmA1.dockerProd.nginxD "SSH deploy" "docker compose pull/up, targeted por servico"
+            mobile.gh.deployJob -> mobile.gh.ghcr "Push imagem" "Docker push (OCI Registry)"
+            mobile.gh.deployJob -> oracle.vcn.vmA1.dockerProd.nginxD "SSH deploy" "docker compose pull/up, targeted por servico"
             tfc.tfState -> oracle.vcn.vmA1.dockerProd.nginxD "Provisiona/reconcilia infraestrutura" "VMs, rede, storage - OCI provider"
             tfc.tfState -> cf.cfProxy "Provisiona DNS" "Cloudflare provider"
             oracle.vcn.vmA1.dockerProd.apiD -> oracle.objStorage.backupBucket "Backup diario" "pg_dump/redis via cron"
@@ -148,7 +154,7 @@ workspace "Oikos" "Plataforma colaborativa para a economia circular de residuos"
     views {
         systemContext oikos "OikosContext" {
             include mobileUser oikos
-            autoLayout tb 300 300
+            autoLayout lr 300 300
         }
 
         container oikos "OikosContainer" {
@@ -162,15 +168,16 @@ workspace "Oikos" "Plataforma colaborativa para a economia circular de residuos"
             exclude prod.cf
             exclude prod.oracle
             exclude prod.tfc
-            exclude prod.gh.deployJob
-            exclude prod.gh.ghcr
-            autoLayout tb 400 150
+            exclude prod.mobile.gh.deployJob
+            exclude prod.mobile.gh.ghcr
+            autoLayout lr 300 150
         }
 
         deployment oikos "Production" "OikosDeploy" {
-            include prod.userDevice
+            include prod.mobile.userDevice
             include prod.cf
             include prod.oracle
+            exclude "prod.mobile.userDevice.appInstance -> prod.oracle.vcn.vmA1.dockerProd.nginxD"
             autoLayout tb 500 300
         }
 
