@@ -14,10 +14,16 @@ services:
       - "127.0.0.1:8080:8080"
     volumes:
       - ./structurizr/data:/usr/local/structurizr
+    environment:
+      STRUCTURIZR_FEATURE_DSL_FILESYSTEM: "true"
     restart: "no"
 
   # MCP server (gratuito/open source): validação, parse e export de DSL (Mermaid/PlantUML)
   # consumido pelo Claude Code — ver devops/.mcp.json
+  # NÃO suporta tema local via arquivo (bloqueia "theme <nome>" mesmo com
+  # STRUCTURIZR_FEATURE_DSL_FILESYSTEM=true e o volume de themes/ montado — testado e
+  # confirmado; diferente do serviço `structurizr`, que respeita a flag). Ver nota em
+  # docs/architecture-diagrams.md.
   structurizr-mcp:
     image: structurizr/mcp:latest
     ports:
