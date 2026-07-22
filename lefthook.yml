@@ -1,0 +1,25 @@
+pre-commit:
+  jobs:
+    - name: guard-branch
+      run: |
+        branch=$(git symbolic-ref --short HEAD 2>/dev/null)
+        case "$branch" in
+          development|production|main|master)
+            echo "🚫 Commit direto em '$branch' não é permitido. Crie uma branch dedicada (ex.: git checkout -b feat/minha-tarefa)." >&2
+            exit 1
+            ;;
+        esac
+
+pre-push:
+  jobs:
+    - name: guard-remote
+      use_stdin: true
+      run: |
+        while read -r local_ref local_sha remote_ref remote_sha; do
+          case "$remote_ref" in
+            refs/heads/development|refs/heads/production|refs/heads/main|refs/heads/master)
+              echo "🚫 Push direto para '${remote_ref#refs/heads/}' não é permitido. Abra um Pull Request." >&2
+              exit 1
+              ;;
+          esac
+        done
