@@ -140,6 +140,7 @@ services:
       NODE_ENV: production
       NODE_OPTIONS: "--max-old-space-size=384"
       OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
+      CLIENT_API_KEY: ${CLIENT_API_KEY}
     deploy:
       resources:
         limits:

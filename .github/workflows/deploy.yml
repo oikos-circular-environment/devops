@@ -117,6 +117,9 @@ jobs:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          CLIENT_KEY_MOBILE: ${{ secrets.CLIENT_KEY_MOBILE }}
+          CLIENT_KEY_WEB: ${{ secrets.CLIENT_KEY_WEB }}
+          CLIENT_API_KEY: ${{ secrets.CLIENT_API_KEY }}
         run: |
           cat > /tmp/env.prod.rendered <<EOF
           API_VERSION=${{ needs.api-build.outputs.version }}
@@ -138,6 +141,11 @@ jobs:
           ACCOUNT_DELETION_DELAY_MS=7776000000
           WORKER_CONCURRENCY=5
           PRISMA_QUERY_LOG=true
+
+          CLIENT_KEY_MOBILE=${CLIENT_KEY_MOBILE}
+          CLIENT_KEY_WEB=${CLIENT_KEY_WEB}
+          CLIENT_KEY_ENFORCE=true
+          CLIENT_API_KEY=${CLIENT_API_KEY}
 
           PROMETHEUS_REMOTE_WRITE_URL=http://${{ vars.OBSERVABILITY_PRIVATE_IP }}:9090/api/v1/write
           LOKI_URL=http://${{ vars.OBSERVABILITY_PRIVATE_IP }}:3100/loki/api/v1/push
