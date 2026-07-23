@@ -1,0 +1,34 @@
+# Self-host do Structurizr — o serviço hospedado (structurizr.com) encerra em set/2026.
+# Modo `local`: 1 workspace só, sem licença, sem API multi-workspace — suficiente para
+# uso individual (gerar/visualizar os diagramas C4 da infra do Oikos). O modo `server`
+# (multi-workspace + API) exige licença/trial mesmo para subir, por isso não foi usado.
+# Specs/decisão: ver docs/docker-infra.md
+
+name: oikos-structurizr
+
+services:
+  structurizr:
+    image: structurizr/structurizr:latest
+    command: local
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./structurizr/data:/usr/local/structurizr
+    environment:
+      STRUCTURIZR_FEATURE_DSL_FILESYSTEM: "true"
+    restart: "no"
+
+  # MCP server (gratuito/open source): validação, parse e export de DSL (Mermaid/PlantUML)
+  # consumido pelo Claude Code — ver devops/.mcp.json
+  # NÃO suporta tema local via arquivo (bloqueia "theme <nome>" mesmo com
+  # STRUCTURIZR_FEATURE_DSL_FILESYSTEM=true e o volume de themes/ montado — testado e
+  # confirmado; diferente do serviço `structurizr`, que respeita a flag). Ver nota em
+  # docs/architecture-diagrams.md.
+  structurizr-mcp:
+    image: structurizr/mcp:latest
+    ports:
+      - "127.0.0.1:3210:3000"
+    environment:
+      PORT: "3000"
+    command: ["-dsl", "-plantuml", "-mermaid"]
+    restart: "no"

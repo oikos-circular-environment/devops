@@ -4,6 +4,7 @@
   "description": "Infraestrutura de observabilidade e testes de carga para a Oikos API",
   "private": true,
   "scripts": {
+    "prepare": "lefthook install",
     "obs:up": "docker compose -f observability/docker-compose.observability.yml up -d",
     "obs:down": "docker compose -f observability/docker-compose.observability.yml down",
     "obs:ps": "docker compose -f observability/docker-compose.observability.yml ps",
@@ -18,6 +19,7 @@
   "devDependencies": {
     "@types/k6": "^2.0.0",
     "dotenv-cli": "^11.0.0",
+    "lefthook": "^2.1.10",
     "typescript": "^5.8.3"
   }
 }

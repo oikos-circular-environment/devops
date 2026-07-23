@@ -2,7 +2,7 @@
 
 Referência central de como a infraestrutura de produção do Oikos (épico [`oracle-cloud-migration`](../plans/oracle-cloud-migration/00-epic-brief.md)) foi construída: limites/custos reais de cada serviço e o *porquê* de cada decisão de desenho no Terraform (`infra/terraform/`). Referências `(ver ticket NN)` apontam pro histórico de implementação em `plans/oracle-cloud-migration/tickets/`. Atualizar sempre que um provedor mudar preço/limite ou uma decisão de arquitetura mudar.
 
-Doc irmão: [`docker-infra.md`](./docker-infra.md) cobre a camada de Docker/deploy (compose, pipeline CI/CD, observability). Diagramas C4 em [`architecture-diagrams.md`](./architecture-diagrams.md).
+Doc irmão: [`docker-infra.md`](./docker-infra.md) cobre a camada de Docker/deploy (compose, pipeline CI/CD, observability). Diagramas C4 em [`architecture-diagrams.md`](./architecture-diagrams.md). Cenário hipotético de custo fora do Always Free (infra + assinaturas) em [`estimativa-custo-mensal.md`](./estimativa-custo-mensal.md).
 
 ## Oracle Cloud — Always Free Tier
 
