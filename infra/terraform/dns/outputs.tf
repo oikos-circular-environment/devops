@@ -14,3 +14,14 @@ output "origin_private_key_pem" {
   value       = tls_private_key.origin.private_key_pem
   sensitive   = true
 }
+
+output "turnstile_sitekey" {
+  description = "Site key do widget Turnstile (publica) - vai pro frontend web (web#32)"
+  value       = cloudflare_turnstile_widget.support_form.sitekey
+}
+
+output "turnstile_secret" {
+  description = "Secret key do widget Turnstile - copiar manualmente pro GitHub Secret TURNSTILE_SECRET_KEY (validacao no api#50 / web#32). Ver com: terraform output -raw turnstile_secret"
+  value       = cloudflare_turnstile_widget.support_form.secret
+  sensitive   = true
+}

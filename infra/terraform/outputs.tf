@@ -30,6 +30,17 @@ output "origin_private_key_pem" {
   sensitive   = true
 }
 
+output "turnstile_sitekey" {
+  description = "Site key do widget Turnstile (publica) - vai pro frontend web (web#32)"
+  value       = module.dns.turnstile_sitekey
+}
+
+output "turnstile_secret" {
+  description = "Secret key do widget Turnstile - copiar manualmente pro GitHub Secret TURNSTILE_SECRET_KEY. Ver com: terraform output -raw turnstile_secret"
+  value       = module.dns.turnstile_secret
+  sensitive   = true
+}
+
 output "backup_bucket_name" {
   description = "Nome do bucket de backup no Object Storage"
   value       = module.storage.bucket_name
