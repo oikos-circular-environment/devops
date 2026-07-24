@@ -142,6 +142,8 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
       API_INTERNAL_URL: http://api:3333
       CLIENT_API_KEY: ${CLIENT_API_KEY}
+      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY}
+      TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY}
     deploy:
       resources:
         limits:
