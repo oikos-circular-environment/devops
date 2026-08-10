@@ -39,13 +39,13 @@ Referência rápida de como chegar em cada serviço rodando nas VMs — consolid
 
 | VM | IP público | IP privado |
 |---|---|---|
-| `oikos-app` (A1.Flex) | `134.65.229.35` | `10.0.1.196` |
-| `oikos-observability` (E2.1.Micro) | — (sem IP público, por design) | `10.0.2.37` |
+| `oikos-app` (A1.Flex) | `167.126.6.162` | `10.0.1.155` |
+| `oikos-observability` (E2.1.Micro) | — (sem IP público, por design) | `10.0.2.51` |
 
 A `E2.1.Micro` não tem IP público, então SSH só via bastion pela `A1.Flex` (`ssh -J` não propaga a identidade explícita `-i` pro salto, por isso `ProxyCommand` explícito):
 
 ```bash
-ssh -i <chave> -o ProxyCommand="ssh -i <chave> -W %h:%p deploy@134.65.229.35" deploy@10.0.2.37
+ssh -i <chave> -o ProxyCommand="ssh -i <chave> -W %h:%p deploy@167.126.6.162" deploy@10.0.2.51
 ```
 
 | Serviço | Endereço interno (rede Docker) | Endereço externo | Como acessar hoje |
@@ -57,11 +57,11 @@ ssh -i <chave> -o ProxyCommand="ssh -i <chave> -W %h:%p deploy@134.65.229.35" de
 | api | `api:3333` | `https://api.oikos.company` (proxied) | Browser/HTTP client |
 | web | `web:3000` | `https://oikos.company` / `https://www.oikos.company` (proxied) | Browser |
 | nginx | — | `443` na A1.Flex, atrás do proxy Cloudflare | — |
-| prometheus | `10.0.2.37:9090` | nenhum (Security List só permite `10.0.1.0/24`) | SSH bastion na E2.1.Micro |
-| loki | `10.0.2.37:3100` | nenhum (só `10.0.1.0/24`) | SSH bastion na E2.1.Micro |
-| tempo | `10.0.2.37:4317` (gRPC OTLP) | nenhum (só `10.0.1.0/24`) | SSH bastion na E2.1.Micro |
-| grafana | `10.0.2.37:3000` | `https://grafana.oikos.company` (proxied) | Browser, login próprio |
-| alertmanager | `10.0.2.37:9093` | nenhum, nem da subnet pública (sem regra na Security List) | SSH bastion na E2.1.Micro |
+| prometheus | `10.0.2.51:9090` | nenhum (Security List só permite `10.0.1.0/24`) | SSH bastion na E2.1.Micro |
+| loki | `10.0.2.51:3100` | nenhum (só `10.0.1.0/24`) | SSH bastion na E2.1.Micro |
+| tempo | `10.0.2.51:4317` (gRPC OTLP) | nenhum (só `10.0.1.0/24`) | SSH bastion na E2.1.Micro |
+| grafana | `10.0.2.51:3000` | `https://grafana.oikos.company` (proxied) | Browser, login próprio |
+| alertmanager | `10.0.2.51:9093` | nenhum, nem da subnet pública (sem regra na Security List) | SSH bastion na E2.1.Micro |
 
 Credenciais de `postgresql`/`redis`/`minio` ficam em `.env.prod` na VM (`POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_DB`, `REDIS_PASSWORD`, `MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY` — nomes das variáveis, os valores nunca ficam neste doc).
 
@@ -73,12 +73,12 @@ Para instruções campo a campo de como conectar um gerenciador de banco GUI (Be
 
 Postgres:
 ```bash
-ssh deploy@134.65.229.35 "docker inspect oikos-prod-postgresql-1 --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'"
+ssh deploy@167.126.6.162 "docker inspect oikos-prod-postgresql-1 --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'"
 ```
 
 Redis:
 ```bash
-ssh deploy@134.65.229.35 "docker inspect oikos-prod-redis-1 --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'"
+ssh deploy@167.126.6.162 "docker inspect oikos-prod-redis-1 --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'"
 ```
 
 **Postgres** — IP interno atual: `172.18.0.3`.
@@ -97,7 +97,7 @@ ssh deploy@134.65.229.35 "docker inspect oikos-prod-redis-1 --format '{{range .N
 | Password | `$POSTGRES_PASSWORD` |
 | Default Database | `$POSTGRES_DB` |
 | SSH Tunnel | `On` |
-| SSH Hostname | `134.65.229.35` |
+| SSH Hostname | `167.126.6.162` |
 | Port (SSH) | `22` |
 | SSH Authentication | `Key File` |
 | SSH Username | `deploy` |
@@ -108,13 +108,13 @@ ssh deploy@134.65.229.35 "docker inspect oikos-prod-redis-1 --format '{{range .N
 **Rodando os seeds contra produção**: `api/scripts/seed-prod.ts` (`npm run seed:prod`, no repo `api`) automatiza o fluxo acima — descobre o IP do container, lê as credenciais do `.env.prod` na VM via SSH, abre o túnel e roda `npm run seed` com o `DATABASE_URL` correto, fechando o túnel ao final. Uso esperado: manutenção pontual ou povoamento de infra nova, não o fluxo normal de dev (que roda contra o Postgres local). Sem guarda contra os usuários fake do `seedUsers` — fazem parte do povoamento de dados do MVP.
 
 ```bash
-DEST_SSH_HOST=134.65.229.35 DEST_SSH_KEY=<caminho-da-chave> npm run seed:prod
+DEST_SSH_HOST=167.126.6.162 DEST_SSH_KEY=<caminho-da-chave> npm run seed:prod
 ```
 
 **Redis** — IP interno atual: `172.18.0.2`. O Beekeeper não tem campo de túnel SSH pra conexões Redis, então o túnel precisa ser aberto manualmente antes de conectar:
 
 ```bash
-ssh -L 6379:172.18.0.2:6379 deploy@134.65.229.35
+ssh -L 6379:172.18.0.2:6379 deploy@167.126.6.162
 ```
 
 Deixar esse terminal aberto (o túnel some se ele fechar) e, no Beekeeper, criar a conexão Redis com:
