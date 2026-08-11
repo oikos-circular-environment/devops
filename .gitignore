@@ -30,3 +30,10 @@ infra/terraform/**/*.tfvars
 infra/terraform/**/*.tfvars.json
 infra/terraform/**/override.tf
 infra/terraform/**/override.tf.json
+
+# graphify knowledge graph (regenerated locally by hooks)
+graphify-out/
+
+# local per-machine agent config (embeds absolute paths)
+.claude/settings.json
+.claude/settings.local.json
