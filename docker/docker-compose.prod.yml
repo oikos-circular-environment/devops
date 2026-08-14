@@ -20,6 +20,7 @@ services:
       POSTGRESQL_EXTRA_FLAGS: "-c io_method=sync"
     volumes:
       - postgresql_data:/bitnami/postgresql
+      - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
     deploy:
       resources:
         limits:
