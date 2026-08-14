@@ -237,6 +237,7 @@ jobs:
   web-build:
     if: github.event.action == 'web-production' || (github.event_name == 'workflow_dispatch' && inputs.service == 'web')
     runs-on: ubuntu-24.04-arm # arm64 nativo - ver docs/docker-infra.md#1
+    environment: web-production
     outputs:
       version: ${{ steps.version.outputs.tag }}
     steps:
@@ -292,6 +293,9 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: ghcr.io/oikos-circular-environment/web:${{ steps.version.outputs.tag }}
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ vars.NEXT_PUBLIC_API_URL }}
+            NEXT_PUBLIC_CLIENT_API_KEY=${{ secrets.NEXT_PUBLIC_CLIENT_API_KEY }}
 
   web-sync:
     needs: web-build
