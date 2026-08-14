@@ -6,7 +6,7 @@ services:
   postgresql:
     image: bitnami/postgresql:latest
     env_file:
-      - .env.prod
+      - .env.infra
     environment:
       POSTGRESQL_USERNAME: ${POSTGRES_USER}
       POSTGRESQL_PASSWORD: ${POSTGRES_PASSWORD}
@@ -37,7 +37,7 @@ services:
   redis:
     image: bitnami/redis:latest
     env_file:
-      - .env.prod
+      - .env.infra
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       REDIS_AOF_ENABLED: "yes" # persistência - pré-requisito do backup (ticket 08)
@@ -59,7 +59,7 @@ services:
   minio:
     image: minio/minio:latest
     env_file:
-      - .env.prod
+      - .env.infra
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
@@ -84,7 +84,7 @@ services:
       minio:
         condition: service_healthy
     env_file:
-      - .env.prod
+      - .env.infra
     entrypoint: >
       /bin/sh -c "
       mc alias set local http://minio:9000 $${MINIO_ACCESS_KEY} $${MINIO_SECRET_KEY};
@@ -99,7 +99,8 @@ services:
       context: ../../api
       dockerfile: ../devops/docker/Dockerfile.api.prod
     env_file:
-      - .env.prod
+      - .env.infra
+      - .env.api
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgresql:5432/${POSTGRES_DB}
@@ -204,7 +205,7 @@ services:
   alloy:
     image: grafana/alloy:latest
     env_file:
-      - .env.prod
+      - .env.infra
     environment:
       PROMETHEUS_REMOTE_WRITE_URL: ${PROMETHEUS_REMOTE_WRITE_URL}
       LOKI_URL: ${LOKI_URL}

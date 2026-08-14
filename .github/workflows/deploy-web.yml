@@ -71,6 +71,7 @@ jobs:
   sync:
     needs: build
     runs-on: ubuntu-24.04-arm
+    environment: web-production
     steps:
       - name: Checkout devops (compose, nginx, observability, scripts)
         uses: actions/checkout@v7
@@ -87,17 +88,20 @@ jobs:
           vm-host: ${{ vars.VM_HOST }}
           obs-private-ip: ${{ vars.OBSERVABILITY_PRIVATE_IP }}
 
-      # Nao precisa do Environment web-production - ver docs/docker-infra.md#2
-      - name: Atualiza WEB_VERSION no .env.prod remoto
+      - name: Renderiza .env.web a partir dos secrets
+        env:
+          CLIENT_API_KEY: ${{ secrets.CLIENT_API_KEY }}
+          TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
+          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
         run: |
-          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" "
-            touch /opt/oikos/docker/.env.prod
-            if grep -q '^WEB_VERSION=' /opt/oikos/docker/.env.prod; then
-              sed -i 's/^WEB_VERSION=.*/WEB_VERSION=${{ needs.build.outputs.version }}/' /opt/oikos/docker/.env.prod
-            else
-              echo 'WEB_VERSION=${{ needs.build.outputs.version }}' >> /opt/oikos/docker/.env.prod
-            fi
-          "
+          cat > /tmp/env.web.rendered <<EOF
+          WEB_VERSION=${{ needs.build.outputs.version }}
+          CLIENT_API_KEY=${CLIENT_API_KEY}
+          TURNSTILE_SITE_KEY=${TURNSTILE_SITE_KEY}
+          TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY}
+          EOF
+          scp -i ~/.ssh/deploy_key /tmp/env.web.rendered deploy@"${{ vars.VM_HOST }}":/opt/oikos/docker/.env.web
+          rm -f /tmp/env.web.rendered
 
   deploy-container:
     needs: sync
@@ -116,10 +120,10 @@ jobs:
       - name: Deploy targeted do servico web
         run: |
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
-            "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml pull web && docker compose --env-file .env.prod -f docker-compose.prod.yml up -d web"
+            "cd /opt/oikos/docker && docker compose --env-file .env.infra --env-file .env.api --env-file .env.web -f docker-compose.prod.yml pull web && docker compose --env-file .env.infra --env-file .env.api --env-file .env.web -f docker-compose.prod.yml up -d web"
 
       # (ver ticket 11)
       - name: Recria nginx e alloy (bind mount de arquivo unico nao atualiza com reload/restart)
         run: |
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
-            "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --force-recreate --no-deps nginx alloy"
+            "cd /opt/oikos/docker && docker compose --env-file .env.infra --env-file .env.api --env-file .env.web -f docker-compose.prod.yml up -d --force-recreate --no-deps nginx alloy"

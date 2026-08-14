@@ -20,6 +20,7 @@ jobs:
   # Reconciliacao completa da stack - ver docs/docker-infra.md#3 (ticket 12)
   stack-production:
     runs-on: ubuntu-24.04-arm
+    environment: infra-production
     steps:
       - name: Checkout devops (nginx, observability, scripts, docker-compose)
         uses: actions/checkout@v7
@@ -39,7 +40,7 @@ jobs:
           API_VERSION=$(gh api repos/oikos-circular-environment/api/tags --paginate --jq '.[].name' | sort -V | tail -1)
           WEB_VERSION=$(gh api repos/oikos-circular-environment/web/tags --paginate --jq '.[].name' | sort -V | tail -1)
           CURRENT_API=$(ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
-            "grep '^API_VERSION=' /opt/oikos/docker/.env.prod 2>/dev/null | cut -d= -f2" || true)
+            "grep '^API_VERSION=' /opt/oikos/docker/.env.api 2>/dev/null | cut -d= -f2" || true)
           echo "Ultima release api: ${API_VERSION:-nenhuma} (rodando: ${CURRENT_API:-nenhuma}) | web: ${WEB_VERSION:-nenhuma}"
           echo "api_version=$API_VERSION" >> "$GITHUB_OUTPUT"
           echo "web_version=$WEB_VERSION" >> "$GITHUB_OUTPUT"
@@ -51,6 +52,8 @@ jobs:
 
       - name: Sincroniza nginx/observability/scripts/docker-compose pra VM
         run: |
+          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
+            'mkdir -p /opt/oikos/docker/certs && touch /opt/oikos/docker/.env.infra /opt/oikos/docker/.env.api /opt/oikos/docker/.env.web'
           scp -i ~/.ssh/deploy_key -r nginx observability scripts \
             deploy@"${{ vars.VM_HOST }}":/opt/oikos/
           scp -i ~/.ssh/deploy_key docker/docker-compose.prod.yml \
@@ -58,23 +61,45 @@ jobs:
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
             "sed -i 's/__OBS_VM_PRIVATE_IP__/${{ vars.OBSERVABILITY_PRIVATE_IP }}/' /opt/oikos/nginx/nginx.conf"
 
-      - name: Atualiza API_VERSION/WEB_VERSION no .env.prod remoto
+      - name: Renderiza .env.infra a partir dos secrets
+        env:
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          MINIO_ACCESS_KEY: ${{ secrets.MINIO_ACCESS_KEY }}
+          MINIO_SECRET_KEY: ${{ secrets.MINIO_SECRET_KEY }}
+        run: |
+          cat > /tmp/env.infra.rendered <<EOF
+          POSTGRES_USER=${POSTGRES_USER}
+          POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+          POSTGRES_DB=oikos
+          REDIS_PASSWORD=${REDIS_PASSWORD}
+          MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+          MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+          PROMETHEUS_REMOTE_WRITE_URL=http://${{ vars.OBSERVABILITY_PRIVATE_IP }}:9090/api/v1/write
+          LOKI_URL=http://${{ vars.OBSERVABILITY_PRIVATE_IP }}:3100/loki/api/v1/push
+          TEMPO_ENDPOINT=${{ vars.OBSERVABILITY_PRIVATE_IP }}:4317
+          EOF
+          scp -i ~/.ssh/deploy_key /tmp/env.infra.rendered deploy@"${{ vars.VM_HOST }}":/opt/oikos/docker/.env.infra
+          rm -f /tmp/env.infra.rendered
+
+      - name: Atualiza API_VERSION/WEB_VERSION nos .env.api/.env.web remotos
         if: steps.versions.outputs.api_version != '' || steps.versions.outputs.web_version != ''
         run: |
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" "
-            touch /opt/oikos/docker/.env.prod
+            touch /opt/oikos/docker/.env.api /opt/oikos/docker/.env.web
             if [ -n '${{ steps.versions.outputs.api_version }}' ]; then
-              if grep -q '^API_VERSION=' /opt/oikos/docker/.env.prod; then
-                sed -i 's/^API_VERSION=.*/API_VERSION=${{ steps.versions.outputs.api_version }}/' /opt/oikos/docker/.env.prod
+              if grep -q '^API_VERSION=' /opt/oikos/docker/.env.api; then
+                sed -i 's/^API_VERSION=.*/API_VERSION=${{ steps.versions.outputs.api_version }}/' /opt/oikos/docker/.env.api
               else
-                echo 'API_VERSION=${{ steps.versions.outputs.api_version }}' >> /opt/oikos/docker/.env.prod
+                echo 'API_VERSION=${{ steps.versions.outputs.api_version }}' >> /opt/oikos/docker/.env.api
               fi
             fi
             if [ -n '${{ steps.versions.outputs.web_version }}' ]; then
-              if grep -q '^WEB_VERSION=' /opt/oikos/docker/.env.prod; then
-                sed -i 's/^WEB_VERSION=.*/WEB_VERSION=${{ steps.versions.outputs.web_version }}/' /opt/oikos/docker/.env.prod
+              if grep -q '^WEB_VERSION=' /opt/oikos/docker/.env.web; then
+                sed -i 's/^WEB_VERSION=.*/WEB_VERSION=${{ steps.versions.outputs.web_version }}/' /opt/oikos/docker/.env.web
               else
-                echo 'WEB_VERSION=${{ steps.versions.outputs.web_version }}' >> /opt/oikos/docker/.env.prod
+                echo 'WEB_VERSION=${{ steps.versions.outputs.web_version }}' >> /opt/oikos/docker/.env.web
               fi
             fi
           "
@@ -83,24 +108,24 @@ jobs:
       - name: Aplica mudancas de config nos servicos de infra que nao sao nginx/alloy
         run: |
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
-            "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --no-deps postgresql redis minio createbuckets cadvisor node-exporter"
+            "cd /opt/oikos/docker && docker compose --env-file .env.infra --env-file .env.api --env-file .env.web -f docker-compose.prod.yml up -d --no-deps postgresql redis minio createbuckets cadvisor node-exporter"
 
       - name: Roda a migration (so quando a versao do api muda - para aqui se falhar)
         if: steps.versions.outputs.api_changed == 'true'
         run: |
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
-            "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml run --rm api npx prisma migrate deploy"
+            "cd /opt/oikos/docker && docker compose --env-file .env.infra --env-file .env.api --env-file .env.web -f docker-compose.prod.yml run --rm api npx prisma migrate deploy"
 
       # Step separado de proposito - ver docs/docker-infra.md#3
       - name: Converge api/web pra ultima release publicada
         run: |
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
-            "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml pull api web && docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --no-deps api web"
+            "cd /opt/oikos/docker && docker compose --env-file .env.infra --env-file .env.api --env-file .env.web -f docker-compose.prod.yml pull api web && docker compose --env-file .env.infra --env-file .env.api --env-file .env.web -f docker-compose.prod.yml up -d --no-deps api web"
 
       - name: Recria nginx e alloy (bind mount de arquivo unico nao atualiza com reload/restart)
         run: |
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
-            "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --force-recreate --no-deps nginx alloy"
+            "cd /opt/oikos/docker && docker compose --env-file .env.infra --env-file .env.api --env-file .env.web -f docker-compose.prod.yml up -d --force-recreate --no-deps nginx alloy"
 
       # Bastion pela A1.Flex - ProxyCommand, nao ProxyJump (ver docs/docker-infra.md#6)
       - name: Sincroniza e reconcilia a stack de observabilidade na E2.1.Micro

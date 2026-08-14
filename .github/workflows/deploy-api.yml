@@ -79,35 +79,16 @@ jobs:
           vm-host: ${{ vars.VM_HOST }}
 
       # Renderizado localmente, nao via sed remoto - ver docs/docker-infra.md#2
-      - name: Renderiza .env.prod a partir dos secrets
+      - name: Renderiza .env.api a partir dos secrets
         env:
-          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
-          MINIO_ACCESS_KEY: ${{ secrets.MINIO_ACCESS_KEY }}
-          MINIO_SECRET_KEY: ${{ secrets.MINIO_SECRET_KEY }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
           CLIENT_KEY_MOBILE: ${{ secrets.CLIENT_KEY_MOBILE }}
           CLIENT_KEY_WEB: ${{ secrets.CLIENT_KEY_WEB }}
-          CLIENT_API_KEY: ${{ secrets.CLIENT_API_KEY }}
-          TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
-          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
         run: |
-          cat > /tmp/env.prod.rendered <<EOF
+          cat > /tmp/env.api.rendered <<EOF
           API_VERSION=${{ needs.build.outputs.version }}
-          WEB_VERSION=\${WEB_VERSION:-latest}
-
-          POSTGRES_USER=${POSTGRES_USER}
-          POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-          POSTGRES_DB=oikos
-
-          REDIS_PASSWORD=${REDIS_PASSWORD}
-
-          MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
-          MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
-
           JWT_SECRET=${JWT_SECRET}
           ADMIN_USERNAME=${ADMIN_USERNAME}
           ADMIN_PASSWORD=${ADMIN_PASSWORD}
@@ -115,34 +96,18 @@ jobs:
           ACCOUNT_DELETION_DELAY_MS=7776000000
           WORKER_CONCURRENCY=5
           PRISMA_QUERY_LOG=true
-
           CLIENT_KEY_MOBILE=${CLIENT_KEY_MOBILE}
           CLIENT_KEY_WEB=${CLIENT_KEY_WEB}
           CLIENT_KEY_ENFORCE=true
-          CLIENT_API_KEY=${CLIENT_API_KEY}
-
-          TURNSTILE_SITE_KEY=${TURNSTILE_SITE_KEY}
-          TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY}
-
-          PROMETHEUS_REMOTE_WRITE_URL=http://${{ vars.OBSERVABILITY_PRIVATE_IP }}:9090/api/v1/write
-          LOKI_URL=http://${{ vars.OBSERVABILITY_PRIVATE_IP }}:3100/loki/api/v1/push
-          TEMPO_ENDPOINT=${{ vars.OBSERVABILITY_PRIVATE_IP }}:4317
           EOF
+          scp -i ~/.ssh/deploy_key /tmp/env.api.rendered deploy@"${{ vars.VM_HOST }}":/opt/oikos/docker/.env.api
+          rm -f /tmp/env.api.rendered
 
       - name: Sincroniza arquivos de deploy pra VM
         uses: ./.github/actions/sync-deploy-files
         with:
           vm-host: ${{ vars.VM_HOST }}
           obs-private-ip: ${{ vars.OBSERVABILITY_PRIVATE_IP }}
-
-      # WEB_VERSION preexistente sobrevive ao render - ver docs/docker-infra.md#2
-      - name: Copia .env.prod renderizado preservando WEB_VERSION
-        run: |
-          CURRENT_WEB_VERSION=$(ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
-            "grep '^WEB_VERSION=' /opt/oikos/docker/.env.prod 2>/dev/null | cut -d= -f2" || echo "latest")
-          sed -i "s|WEB_VERSION=\${WEB_VERSION:-latest}|WEB_VERSION=${CURRENT_WEB_VERSION:-latest}|" /tmp/env.prod.rendered
-          scp -i ~/.ssh/deploy_key /tmp/env.prod.rendered deploy@"${{ vars.VM_HOST }}":/opt/oikos/docker/.env.prod
-          rm -f /tmp/env.prod.rendered
 
       - name: Materializa certificado Cloudflare Origin CA
         run: |
@@ -167,7 +132,7 @@ jobs:
       - name: Roda a migration (para o deploy se falhar - container antigo continua servindo)
         run: |
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
-            "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml run --rm api npx prisma migrate deploy"
+            "cd /opt/oikos/docker && docker compose --env-file .env.infra --env-file .env.api --env-file .env.web -f docker-compose.prod.yml run --rm api npx prisma migrate deploy"
 
   deploy-container:
     needs: migrate
@@ -185,10 +150,10 @@ jobs:
       - name: Deploy targeted do servico api
         run: |
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
-            "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml pull api && docker compose --env-file .env.prod -f docker-compose.prod.yml up -d api"
+            "cd /opt/oikos/docker && docker compose --env-file .env.infra --env-file .env.api --env-file .env.web -f docker-compose.prod.yml pull api && docker compose --env-file .env.infra --env-file .env.api --env-file .env.web -f docker-compose.prod.yml up -d api"
 
       # gotcha bind-mount - ver docs/docker-infra.md#6 (ticket 11)
       - name: Recria nginx e alloy (bind mount de arquivo unico nao atualiza com reload/restart)
         run: |
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
-            "cd /opt/oikos/docker && docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --force-recreate --no-deps nginx alloy"
+            "cd /opt/oikos/docker && docker compose --env-file .env.infra --env-file .env.api --env-file .env.web -f docker-compose.prod.yml up -d --force-recreate --no-deps nginx alloy"

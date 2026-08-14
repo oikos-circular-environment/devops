@@ -3,6 +3,9 @@ node_modules/
 # Env files (apenas o .example vai para o git)
 observability/.env.observability
 docker/.env.prod
+docker/.env.infra
+docker/.env.api
+docker/.env.web
 cloudflare/.env.cloudflare
 
 # Certificados Cloudflare Origin CA (materializados pelo deploy.yml, nunca commitados)
