@@ -12,11 +12,21 @@ Mesmo gate mínimo rodando **antes** do merge nos dois repos. `mobile` fica de f
 
 `checkout` → `setup-node@24` (cache npm) → `npm ci` → `biome ci .` → **suíte de testes de verdade**, em PR para `development` e para `production`.
 
-## Achado que muda o escopo
+## Achado que muda o escopo (verificado 2026-08-14)
 
-O `web` **não tem test runner configurado**. O job `quality` roda `biome` + `npm run build`, usando o build como proxy de teste (há TODO explícito em `web/.github/workflows/ci.yml`). Padronizar sem resolver isso deixa o gate de fachada — o `web` não tem cobertura de lógica nenhuma barrando merge.
+A premissa inicial — "o `web` não tem test runner, então precisa de Vitest + RTL" — está **parcialmente errada**. O que existe de fato:
 
-Por isso adicionar Vitest + RTL no `web` faz parte deste ticket, não de um futuro.
+- O `web` **tem** suíte de testes: 6 specs Playwright em `web/e2e/` (`login`, `layout`, `suporte`, `verify-email`, `header-account-button`, `sidebar-moderation-visibility`), com `fake-api-server.mjs` e `webServer` já configurado no `playwright.config.ts`. Script `test:e2e` existe no `package.json`.
+- **Nada disso roda no CI.** O `web/.github/workflows/ci.yml` tem só `quality` (biome + `next build`), `lighthouse`, `tag` e `notify-devops`. Nenhum job chama `test:e2e`.
+
+Ou seja: o problema não é ausência de testes, é **teste escrito que ninguém executa**. O ganho maior e mais barato é ligar o que já existe, não escrever suíte nova.
+
+Ordem de valor:
+
+1. **Rodar o `test:e2e` que já existe no CI** — custo quase zero, cobre login, layout e formulários. É isso que fecha o gate de verdade.
+2. Vitest + RTL para lógica de unidade — investimento maior, fica para depois de (1), e só se a lacuna remanescente justificar.
+
+O TODO em `web/.github/workflows/ci.yml` que diz "nenhum test runner configurado no repo ainda" está desatualizado e sai junto.
 
 ## O que continua específico
 
@@ -29,11 +39,15 @@ Por isso adicionar Vitest + RTL no `web` faz parte deste ticket, não de um futu
 
 ## Checklist
 
-- [ ] Adicionar Vitest + RTL no `web` com pelo menos a cobertura da lógica que hoje não tem nenhuma
-- [ ] `web/.github/workflows/ci.yml`: job `quality` passa a rodar testes de verdade, não `build` como proxy
+- [ ] `web/.github/workflows/ci.yml`: job `e2e` rodando `npm run test:e2e` (Playwright), com `needs: quality` — espelhando o shape do `api`
+- [ ] Remover o TODO desatualizado de `web/.github/workflows/ci.yml`
 - [ ] Alinhar o shape do job `quality` entre os dois repos (mesma ordem de steps, mesmo `setup-node`, mesmo cache)
 - [ ] Conferir que o gate roda em PR para `development` **e** para `production` nos dois
-- [ ] Remover o TODO de `web/.github/workflows/ci.yml`
+- [ ] Avaliar (não necessariamente fazer agora) se falta cobertura de unidade que justifique Vitest + RTL
+
+## Nota sobre branch
+
+`api` e `web` são repositórios separados — não cabem na branch `77-plano-infra-cicd-v2` do `devops`. Cada um precisa da sua branch, referenciando a issue por `oikos-circular-environment/devops#77`.
 
 ## Definição de Pronto
 
