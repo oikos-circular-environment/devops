@@ -77,9 +77,9 @@ T08 (paralelo)
 | [08](./tickets/08-padronizar-ci-api-web.md) | Padronizar CI de `api` e `web` | bloqueada por [web#51](https://github.com/oikos-circular-environment/web/issues/51) |
 | [09](./tickets/09-revisar-scripts-e-systemd.md) | Revisar o que sobrou em `scripts/` e `docker/systemd/` | — |
 
-## Pendência já aberta
+## Build-args do `web` (resolvido)
 
-PR [devops#88](https://github.com/oikos-circular-environment/devops/pull/88) adiciona `ARG`/`build-args` de `NEXT_PUBLIC_API_URL` e `NEXT_PUBLIC_CLIENT_API_KEY` no build do `web`. Sem ele o `web` quebra assim que `web#50` chegar em produção: `web/src/lib/env.ts` lança exceção se a env faltar, e o Next.js inlina `NEXT_PUBLIC_*` em build time (não em runtime). Falta cadastrar o secret `NEXT_PUBLIC_CLIENT_API_KEY` no Environment `web-production`.
+O `web` precisa de `NEXT_PUBLIC_API_URL` e `NEXT_PUBLIC_CLIENT_API_KEY` **em build time** — `web/src/lib/env.ts` lança exceção se a env faltar, e o Next.js inlina `NEXT_PUBLIC_*` no bundle do client, não em runtime. Entrou na branch por cherry-pick (a PR #88 original foi fechada e o trabalho consolidado aqui), e os dois valores já estão cadastrados no Environment `web-production`.
 
 ## Estado em 2026-08-14 (fim do dia)
 
