@@ -32,7 +32,7 @@
 
 ## Checklist
 
-- [x] Criar `_build-push-image.yml` com inputs `service`/`dockerfile`/`image`/`build-args` e output `version`
+- [x] ~~Criar `_build-push-image.yml`~~ — criado e depois **descartado**, ver decisão no registro
 - [x] Criar `deploy-api.yml` (build → sync → migrate → deploy-container; sem backup, já removido em T02)
 - [x] Criar `deploy-web.yml` (build → sync → deploy-container)
 - [x] Criar `deploy-stack.yml` (reconciliação completa, incluindo o step de observabilidade via bastion)
@@ -65,3 +65,9 @@ Documentei essa decisão em `docs/docker-infra.md#1` (bullets "`_build-push-imag
 - `actionlint` não está no PATH deste ambiente — não rodou. Fica pendente pra CI ou uma máquina com o binário instalado.
 
 **Em aberto / risco**: o item de validação por `workflow_dispatch` manual do checklist não dá pra fechar a partir desta branch — precisa dos arquivos mergeados em `production` primeiro (mesma restrição já documentada na seção "Armadilhas" do ticket, e em `docs/docker-infra.md#1`: `repository_dispatch` só acha workflow que já existe no branch default). Recomendo rodar isso manualmente logo após o merge, antes da próxima release de `api`/`web` depender do fluxo novo.
+
+**Correção pós-revisão (2026-08-14)**: o `_build-push-image.yml` foi **removido**. A investigação acima está certa e é o que justifica o `web` builder inline — mas a consequência é que o reusable ficou com **um único chamador** (`deploy-api.yml`). Reusable com um consumidor é indireção sem nenhuma deduplicação: paga o custo de um arquivo a mais, de `secrets` declarados nome a nome e de uma camada de `inputs`, sem economizar linha nenhuma. O build do `api` voltou pra dentro de `deploy-api.yml`, igual ao do `web`.
+
+O resultado são 3 arquivos autocontidos (194 + 125 + 113 = 432 linhas contra as 458 do monolito), e a deduplicação real fica nas composite actions do [T03](./03-composite-actions.md) — só o `ssh-setup` já elimina 7 repetições. Se um dia `NEXT_PUBLIC_API_URL`/`NEXT_PUBLIC_CLIENT_API_KEY` deixarem de ser Environment-scoped, aí sim vale reconsiderar o reusable, com dois consumidores de verdade.
+
+**Validação**: `actionlint` v1.7.7 rodado nos 3 arquivos finais — exit 0, sem warning. (O agente não tinha o binário; instalei e rodei depois.) Também conferido por `grep`: zero `if:` de roteamento residual, zero `inputs.service`, `concurrency: group: deploy-vm` presente nos 3, e os `environment:` preservados (`api-production` no sync do api, `web-production` no build e no deploy-container do web).
