@@ -1,0 +1,92 @@
+name: Deploy infra
+
+on:
+  push:
+    branches: [production]
+    paths:
+      - "docker/**"
+      - "nginx/**"
+      - "scripts/**"
+      - ".github/workflows/deploy-infra.yml"
+      - ".github/actions/**"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-vm
+  cancel-in-progress: false
+
+jobs:
+  # Provisionamento da A1.Flex + servicos com estado - ver docs/docker-infra.md#3
+  infra:
+    runs-on: ubuntu-24.04-arm
+    environment: infra-production
+    steps:
+      - name: Checkout devops (nginx, scripts, docker-compose)
+        uses: actions/checkout@v7
+
+      - name: Configura chave SSH
+        uses: ./.github/actions/ssh-setup
+        with:
+          ssh-private-key: ${{ secrets.SSH_DEPLOY_KEY }}
+          vm-host: ${{ vars.VM_HOST }}
+
+      - name: Sincroniza nginx/observability/scripts/docker-compose pra VM
+        run: |
+          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
+            'mkdir -p /opt/oikos/docker/certs && touch /opt/oikos/docker/.env.infra /opt/oikos/docker/.env.api /opt/oikos/docker/.env.web && rm -rf /opt/oikos/docker/systemd'
+          scp -i ~/.ssh/deploy_key -r nginx observability scripts \
+            deploy@"${{ vars.VM_HOST }}":/opt/oikos/
+          scp -i ~/.ssh/deploy_key docker/docker-compose.prod.yml \
+            deploy@"${{ vars.VM_HOST }}":/opt/oikos/docker/docker-compose.prod.yml
+          scp -i ~/.ssh/deploy_key -r docker/systemd \
+            deploy@"${{ vars.VM_HOST }}":/opt/oikos/docker/
+          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
+            "sed -i 's/__OBS_VM_PRIVATE_IP__/${{ vars.OBSERVABILITY_PRIVATE_IP }}/' /opt/oikos/nginx/nginx.conf"
+
+      - name: Reconcilia as units systemd
+        run: |
+          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" 'bash -s' < scripts/reconcile-systemd.sh
+
+      - name: Renderiza .env.infra a partir dos secrets
+        env:
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          MINIO_ACCESS_KEY: ${{ secrets.MINIO_ACCESS_KEY }}
+          MINIO_SECRET_KEY: ${{ secrets.MINIO_SECRET_KEY }}
+        run: |
+          cat > /tmp/env.infra.rendered <<EOF
+          POSTGRES_USER=${POSTGRES_USER}
+          POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+          POSTGRES_DB=oikos
+          REDIS_PASSWORD=${REDIS_PASSWORD}
+          MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+          MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+          PROMETHEUS_REMOTE_WRITE_URL=http://${{ vars.OBSERVABILITY_PRIVATE_IP }}:9090/api/v1/write
+          LOKI_URL=http://${{ vars.OBSERVABILITY_PRIVATE_IP }}:3100/loki/api/v1/push
+          TEMPO_ENDPOINT=${{ vars.OBSERVABILITY_PRIVATE_IP }}:4317
+          EOF
+          scp -i ~/.ssh/deploy_key /tmp/env.infra.rendered deploy@"${{ vars.VM_HOST }}":/opt/oikos/docker/.env.infra
+          rm -f /tmp/env.infra.rendered
+
+      - name: Materializa certificado Cloudflare Origin CA
+        env:
+          CLOUDFLARE_ORIGIN_CERT: ${{ secrets.CLOUDFLARE_ORIGIN_CERT }}
+          CLOUDFLARE_ORIGIN_KEY: ${{ secrets.CLOUDFLARE_ORIGIN_KEY }}
+        run: |
+          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
+            "cat > /opt/oikos/docker/certs/origin.pem" <<< "$CLOUDFLARE_ORIGIN_CERT"
+          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
+            "cat > /opt/oikos/docker/certs/origin.key && chmod 600 /opt/oikos/docker/certs/origin.key" <<< "$CLOUDFLARE_ORIGIN_KEY"
+
+      # up -d simples resolve mudanca de config - ver docs/docker-infra.md#3 (ticket 10)
+      - name: Aplica mudancas de config nos servicos com estado
+        run: |
+          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
+            "cd /opt/oikos/docker && docker compose --env-file .env.infra --env-file .env.api --env-file .env.web -f docker-compose.prod.yml up -d --no-deps postgresql redis minio createbuckets cadvisor node-exporter"
+
+      # gotcha bind-mount - ver docs/docker-infra.md#6 (ticket 11)
+      - name: Recria nginx e alloy (bind mount de arquivo unico nao atualiza com reload/restart)
+        run: |
+          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
+            "cd /opt/oikos/docker && docker compose --env-file .env.infra --env-file .env.api --env-file .env.web -f docker-compose.prod.yml up -d --force-recreate --no-deps nginx alloy"

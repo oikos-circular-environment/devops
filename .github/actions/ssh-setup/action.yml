@@ -1,0 +1,22 @@
+name: Configura chave SSH
+description: Configura chave SSH para deploy na VM
+inputs:
+  ssh-private-key:
+    description: Chave SSH privada para acesso a VM
+    required: true
+  vm-host:
+    description: Host da VM de destino
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Configura chave SSH
+      shell: bash
+      env:
+        SSH_PRIVATE_KEY: ${{ inputs.ssh-private-key }}
+        VM_HOST: ${{ inputs.vm-host }}
+      run: |
+        mkdir -p ~/.ssh
+        printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+        ssh-keyscan -H "$VM_HOST" >> ~/.ssh/known_hosts
