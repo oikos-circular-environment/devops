@@ -53,13 +53,19 @@ jobs:
       - name: Sincroniza nginx/observability/scripts/docker-compose pra VM
         run: |
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
-            'mkdir -p /opt/oikos/docker/certs && touch /opt/oikos/docker/.env.infra /opt/oikos/docker/.env.api /opt/oikos/docker/.env.web'
+            'mkdir -p /opt/oikos/docker/certs && touch /opt/oikos/docker/.env.infra /opt/oikos/docker/.env.api /opt/oikos/docker/.env.web && rm -rf /opt/oikos/docker/systemd'
           scp -i ~/.ssh/deploy_key -r nginx observability scripts \
             deploy@"${{ vars.VM_HOST }}":/opt/oikos/
           scp -i ~/.ssh/deploy_key docker/docker-compose.prod.yml \
             deploy@"${{ vars.VM_HOST }}":/opt/oikos/docker/docker-compose.prod.yml
+          scp -i ~/.ssh/deploy_key -r docker/systemd \
+            deploy@"${{ vars.VM_HOST }}":/opt/oikos/docker/
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
             "sed -i 's/__OBS_VM_PRIVATE_IP__/${{ vars.OBSERVABILITY_PRIVATE_IP }}/' /opt/oikos/nginx/nginx.conf"
+
+      - name: Reconcilia as units systemd
+        run: |
+          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" 'bash -s' < scripts/reconcile-systemd.sh
 
       - name: Renderiza .env.infra a partir dos secrets
         env:
