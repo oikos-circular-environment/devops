@@ -34,4 +34,8 @@ Quebrar o `deploy.yml` em vários arquivos (é [T04](./04-quebrar-deploy-yml.md)
 
 ## Registro de execução
 
-_(preencher durante a execução)_
+- Criadas as 3 composite actions em `.github/actions/`.
+- `deploy.yml` atualizado para usar as actions; logica extra do `api-sync` (preservar `WEB_VERSION` e copiar `.env.prod` renderizado) mantida inline.
+- `stack-production` manteve o `scp` inline por ser diferente (nao copia pasta `docker` inteira).
+- Adicionado `actions/checkout@v7` nos jobs `api-migrate`, `api-deploy-container` e `web-deploy-container`.
+- Sintaxe YAML validada com sucesso.

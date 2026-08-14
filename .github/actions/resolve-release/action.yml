@@ -1,0 +1,48 @@
+name: Resolve versao e SHA
+description: Resolve versao e SHA de release de um repositorio
+inputs:
+  repo:
+    description: Repositorio no formato owner/repo
+    required: true
+  version:
+    description: Versao/tag a implantar (vazio = ultima tag)
+    required: false
+  sha:
+    description: SHA do commit a implantar (vazio = resolve da tag)
+    required: false
+  github-token:
+    description: Token de acesso ao GitHub
+    required: true
+outputs:
+  tag:
+    value: ${{ steps.version.outputs.tag }}
+  sha:
+    value: ${{ steps.version.outputs.sha }}
+runs:
+  using: composite
+  steps:
+    - name: Resolve versao e SHA
+      id: version
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        REPO: ${{ inputs.repo }}
+        INPUT_VERSION: ${{ inputs.version }}
+        INPUT_SHA: ${{ inputs.sha }}
+      run: |
+        VERSION="$INPUT_VERSION"
+        SHA="$INPUT_SHA"
+        if [ -z "$VERSION" ]; then
+          VERSION=$(gh api "repos/$REPO/tags" --paginate --jq '.[].name' | sort -V | tail -1)
+          echo "Versao resolvida automaticamente: $VERSION"
+        fi
+        if [ -z "$SHA" ]; then
+          SHA=$(gh api "repos/$REPO/git/ref/tags/$VERSION" --jq '.object.sha')
+          TYPE=$(gh api "repos/$REPO/git/ref/tags/$VERSION" --jq '.object.type')
+          if [ "$TYPE" = "tag" ]; then
+            SHA=$(gh api "repos/$REPO/git/tags/$SHA" --jq '.object.sha')
+          fi
+          echo "SHA resolvido automaticamente: $SHA"
+        fi
+        echo "tag=$VERSION" >> "$GITHUB_OUTPUT"
+        echo "sha=$SHA" >> "$GITHUB_OUTPUT"

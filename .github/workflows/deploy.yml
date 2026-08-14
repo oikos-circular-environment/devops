@@ -44,25 +44,12 @@ jobs:
       # Resolucao de versao/SHA - ver docs/docker-infra.md#1 (ticket 12)
       - name: Resolve versao e SHA (auto quando nao informados)
         id: version
-        env:
-          GH_TOKEN: ${{ secrets.SOURCE_REPO_PAT }}
-        run: |
-          VERSION="${{ github.event.client_payload.version || inputs.version }}"
-          SHA="${{ github.event.client_payload.sha || inputs.sha }}"
-          if [ -z "$VERSION" ]; then
-            VERSION=$(gh api repos/oikos-circular-environment/api/tags --paginate --jq '.[].name' | sort -V | tail -1)
-            echo "Versao resolvida automaticamente: $VERSION"
-          fi
-          if [ -z "$SHA" ]; then
-            SHA=$(gh api "repos/oikos-circular-environment/api/git/ref/tags/$VERSION" --jq '.object.sha')
-            TYPE=$(gh api "repos/oikos-circular-environment/api/git/ref/tags/$VERSION" --jq '.object.type')
-            if [ "$TYPE" = "tag" ]; then
-              SHA=$(gh api "repos/oikos-circular-environment/api/git/tags/$SHA" --jq '.object.sha')
-            fi
-            echo "SHA resolvido automaticamente: $SHA"
-          fi
-          echo "tag=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+        uses: ./.github/actions/resolve-release
+        with:
+          repo: oikos-circular-environment/api
+          version: ${{ github.event.client_payload.version || inputs.version }}
+          sha: ${{ github.event.client_payload.sha || inputs.sha }}
+          github-token: ${{ secrets.SOURCE_REPO_PAT }}
 
       - name: Checkout api (fonte pra build da imagem)
         uses: actions/checkout@v7
@@ -100,11 +87,10 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Configura chave SSH
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.SSH_DEPLOY_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "${{ vars.VM_HOST }}" >> ~/.ssh/known_hosts
+        uses: ./.github/actions/ssh-setup
+        with:
+          ssh-private-key: ${{ secrets.SSH_DEPLOY_KEY }}
+          vm-host: ${{ vars.VM_HOST }}
 
       # Renderizado localmente, nao via sed remoto - ver docs/docker-infra.md#2
       - name: Renderiza .env.prod a partir dos secrets
@@ -158,14 +144,14 @@ jobs:
           EOF
 
       - name: Sincroniza arquivos de deploy pra VM
+        uses: ./.github/actions/sync-deploy-files
+        with:
+          vm-host: ${{ vars.VM_HOST }}
+          obs-private-ip: ${{ vars.OBSERVABILITY_PRIVATE_IP }}
+
+      # WEB_VERSION preexistente sobrevive ao render - ver docs/docker-infra.md#2
+      - name: Copia .env.prod renderizado preservando WEB_VERSION
         run: |
-          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" 'mkdir -p /opt/oikos/docker/certs'
-          scp -i ~/.ssh/deploy_key -r docker nginx observability scripts \
-            deploy@"${{ vars.VM_HOST }}":/opt/oikos/
-          # sed, nao envsubst - ver docs/docker-infra.md#2
-          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
-            "sed -i 's/__OBS_VM_PRIVATE_IP__/${{ vars.OBSERVABILITY_PRIVATE_IP }}/' /opt/oikos/nginx/nginx.conf"
-          # WEB_VERSION preexistente sobrevive ao render - ver docs/docker-infra.md#2
           CURRENT_WEB_VERSION=$(ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
             "grep '^WEB_VERSION=' /opt/oikos/docker/.env.prod 2>/dev/null | cut -d= -f2" || echo "latest")
           sed -i "s|WEB_VERSION=\${WEB_VERSION:-latest}|WEB_VERSION=${CURRENT_WEB_VERSION:-latest}|" /tmp/env.prod.rendered
@@ -183,12 +169,14 @@ jobs:
     needs: api-sync
     runs-on: ubuntu-24.04-arm
     steps:
+      - name: Checkout devops
+        uses: actions/checkout@v7
+
       - name: Configura chave SSH
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.SSH_DEPLOY_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "${{ vars.VM_HOST }}" >> ~/.ssh/known_hosts
+        uses: ./.github/actions/ssh-setup
+        with:
+          ssh-private-key: ${{ secrets.SSH_DEPLOY_KEY }}
+          vm-host: ${{ vars.VM_HOST }}
 
       - name: Roda a migration (para o deploy se falhar - container antigo continua servindo)
         run: |
@@ -199,12 +187,14 @@ jobs:
     needs: api-migrate
     runs-on: ubuntu-24.04-arm
     steps:
+      - name: Checkout devops
+        uses: actions/checkout@v7
+
       - name: Configura chave SSH
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.SSH_DEPLOY_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "${{ vars.VM_HOST }}" >> ~/.ssh/known_hosts
+        uses: ./.github/actions/ssh-setup
+        with:
+          ssh-private-key: ${{ secrets.SSH_DEPLOY_KEY }}
+          vm-host: ${{ vars.VM_HOST }}
 
       - name: Deploy targeted do servico api
         run: |
@@ -231,25 +221,12 @@ jobs:
       # (ver ticket 12)
       - name: Resolve versao e SHA (auto quando nao informados)
         id: version
-        env:
-          GH_TOKEN: ${{ secrets.SOURCE_REPO_PAT }}
-        run: |
-          VERSION="${{ github.event.client_payload.version || inputs.version }}"
-          SHA="${{ github.event.client_payload.sha || inputs.sha }}"
-          if [ -z "$VERSION" ]; then
-            VERSION=$(gh api repos/oikos-circular-environment/web/tags --paginate --jq '.[].name' | sort -V | tail -1)
-            echo "Versao resolvida automaticamente: $VERSION"
-          fi
-          if [ -z "$SHA" ]; then
-            SHA=$(gh api "repos/oikos-circular-environment/web/git/ref/tags/$VERSION" --jq '.object.sha')
-            TYPE=$(gh api "repos/oikos-circular-environment/web/git/ref/tags/$VERSION" --jq '.object.type')
-            if [ "$TYPE" = "tag" ]; then
-              SHA=$(gh api "repos/oikos-circular-environment/web/git/tags/$SHA" --jq '.object.sha')
-            fi
-            echo "SHA resolvido automaticamente: $SHA"
-          fi
-          echo "tag=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+        uses: ./.github/actions/resolve-release
+        with:
+          repo: oikos-circular-environment/web
+          version: ${{ github.event.client_payload.version || inputs.version }}
+          sha: ${{ github.event.client_payload.sha || inputs.sha }}
+          github-token: ${{ secrets.SOURCE_REPO_PAT }}
 
       - name: Checkout web (fonte pra build da imagem)
         uses: actions/checkout@v7
@@ -289,19 +266,16 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Configura chave SSH
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.SSH_DEPLOY_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "${{ vars.VM_HOST }}" >> ~/.ssh/known_hosts
+        uses: ./.github/actions/ssh-setup
+        with:
+          ssh-private-key: ${{ secrets.SSH_DEPLOY_KEY }}
+          vm-host: ${{ vars.VM_HOST }}
 
       - name: Sincroniza arquivos de deploy pra VM
-        run: |
-          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" 'mkdir -p /opt/oikos/docker/certs'
-          scp -i ~/.ssh/deploy_key -r docker nginx observability scripts \
-            deploy@"${{ vars.VM_HOST }}":/opt/oikos/
-          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
-            "sed -i 's/__OBS_VM_PRIVATE_IP__/${{ vars.OBSERVABILITY_PRIVATE_IP }}/' /opt/oikos/nginx/nginx.conf"
+        uses: ./.github/actions/sync-deploy-files
+        with:
+          vm-host: ${{ vars.VM_HOST }}
+          obs-private-ip: ${{ vars.OBSERVABILITY_PRIVATE_IP }}
 
       # Nao precisa do Environment web-production - ver docs/docker-infra.md#2
       - name: Atualiza WEB_VERSION no .env.prod remoto
@@ -320,12 +294,14 @@ jobs:
     runs-on: ubuntu-24.04-arm
     environment: web-production # sem secrets hoje - ver docs/docker-infra.md#2
     steps:
+      - name: Checkout devops
+        uses: actions/checkout@v7
+
       - name: Configura chave SSH
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.SSH_DEPLOY_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "${{ vars.VM_HOST }}" >> ~/.ssh/known_hosts
+        uses: ./.github/actions/ssh-setup
+        with:
+          ssh-private-key: ${{ secrets.SSH_DEPLOY_KEY }}
+          vm-host: ${{ vars.VM_HOST }}
 
       - name: Deploy targeted do servico web
         run: |
@@ -347,11 +323,10 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Configura chave SSH
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.SSH_DEPLOY_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "${{ vars.VM_HOST }}" >> ~/.ssh/known_hosts
+        uses: ./.github/actions/ssh-setup
+        with:
+          ssh-private-key: ${{ secrets.SSH_DEPLOY_KEY }}
+          vm-host: ${{ vars.VM_HOST }}
 
       # sort -V + api_changed - ver docs/docker-infra.md#1
       - name: Resolve ultimas versoes publicadas de api/web
