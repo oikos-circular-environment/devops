@@ -40,10 +40,6 @@ Destruir a infra OCI inteira e subir do zero pelo Terraform. **Downtime é aceit
 
 ## Registro de execução
 
-_(preencher durante a execução)_
-
-## Registro de execução
-
 **2026-08-14 — teardown**
 
 O workspace `oracle-server` é **VCS-connected**, então `terraform destroy` pela CLI é recusado (`Apply not allowed for workspaces with a VCS connection`). O caminho suportado é a API do Terraform Cloud: `POST /api/v2/runs` com `is-destroy: true`. Run `run-HpCGSSgDTibFXEUS`, **30 recursos destruídos** — as 2 VMs, a rede inteira (VCN, 2 subnets, internet/NAT gateway, 2 route tables, security list), os 5 registros DNS, o certificado Origin CA, ruleset/bot management/Turnstile, os 3 zone settings e o bucket `oikos-backups` com o IAM associado.
