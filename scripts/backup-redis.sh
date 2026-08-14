@@ -1,15 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Backup diario do Redis - ver docs/docker-infra.md#7 (ticket 08)
+export PATH="$HOME/bin:$PATH"
 
 COMPOSE_DIR="/opt/oikos/docker"
 COMPOSE_FILE="${COMPOSE_DIR}/docker-compose.prod.yml"
 BUCKET="oikos-backups"
 
-# set -a - mesmo bug do backup-postgres.sh, ver docs/docker-infra.md#7 (ticket 09)
 set -a
-# shellcheck disable=SC1091
 source "${COMPOSE_DIR}/.env.prod"
 set +a
 
