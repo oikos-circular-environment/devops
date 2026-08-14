@@ -140,7 +140,7 @@ services:
       NODE_ENV: production
       NODE_OPTIONS: "--max-old-space-size=384"
       OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
-      API_INTERNAL_URL: http://api:3333
+      NEXT_PUBLIC_API_URL: https://api.oikos.company
       CLIENT_API_KEY: ${CLIENT_API_KEY}
       TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY}
       TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY}
