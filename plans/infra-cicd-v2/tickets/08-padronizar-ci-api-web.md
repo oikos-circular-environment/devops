@@ -1,8 +1,8 @@
 # T08 — Padronizar CI de `api` e `web`
 
-**Status**: não iniciada.
+**Status**: **bloqueada** por [web#51](https://github.com/oikos-circular-environment/web/issues/51).
 **Repositórios**: `api`, `web`
-**Independente** — pode correr em paralelo aos demais.
+**Independente** dos demais tickets deste plano.
 
 ## Escopo
 
@@ -56,3 +56,17 @@ Um PR com erro de lint ou teste quebrado é barrado antes do merge, igual nos do
 ## Registro de execução
 
 _(preencher durante a execução)_
+
+## Registro de execução
+
+**2026-08-14** — Suíte e2e do `web` executada localmente pela primeira vez (`CI=1 npx playwright test`, após `npm ci` — o `node_modules` local estava sem o `zustand` que veio no web#50).
+
+Resultado: **81 passaram, 6 falharam**. As 6 falhas são todas de `e2e/header-account-button.spec.ts` (2 casos × 3 viewports), e são falhas **legítimas**:
+
+> `src/components/account-menu-button.tsx` foi criado no web#50 junto com esses testes, mas **nunca foi importado nem renderizado**. `grep -rn "AccountMenuButton" src/` bate só na própria definição. O `site-header.tsx` renderiza logo, `NavigationMenu`, `ModeToggle` e `SiteHeaderMobileNav` — sem botão de conta. Na prática, o header em `development` está sem Entrar, sem Registrar e sem acesso ao dashboard.
+
+Isso é a justificativa do ticket se provando na prática: o teste existia, estava certo, e apontava um bug real que ninguém via porque o CI nunca o executava.
+
+Aberta [web#51](https://github.com/oikos-circular-environment/web/issues/51) com o diagnóstico. **O job `e2e` no `ci.yml` só entra depois desse fix** — ligar um gate vermelho travaria todo merge no repo. A branch local com o `ci.yml` alterado foi descartada; o conteúdo do job está preservado no corpo da issue e no checklist acima.
+
+Também confirmado: os 3 projects do `playwright.config.ts` (mobile/tablet/desktop) são todos Chromium, então `npx playwright install --with-deps chromium` cobre a suíte inteira no runner.
