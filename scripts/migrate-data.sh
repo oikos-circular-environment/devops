@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Migracao one-time de dados (Postgres + MinIO) - ver docs/docker-infra.md#7 (ticket 10)
+# Migracao one-time de dados (Postgres + MinIO) - ver docs/docker-infra.md#8 (ticket 10)
 #
 # Nenhuma variavel tem default de proposito - forca conferir os valores
 # antes de rodar uma operacao dessas, que sobrescreve o banco/bucket de
