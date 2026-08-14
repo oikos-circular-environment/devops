@@ -31,7 +31,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # --- api: build -> sync -> backup -> migrate -> deploy-container --------- (ver docs/docker-infra.md#1)
+  # --- api: build -> sync -> migrate -> deploy-container ------------------ (ver docs/docker-infra.md#1)
   api-build:
     if: github.event.action == 'api-production' || (github.event_name == 'workflow_dispatch' && inputs.service == 'api')
     runs-on: ubuntu-24.04-arm # arm64 nativo - ver docs/docker-infra.md#1
@@ -179,24 +179,8 @@ jobs:
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
             "cat > /opt/oikos/docker/certs/origin.key && chmod 600 /opt/oikos/docker/certs/origin.key" <<< "${{ secrets.CLOUDFLARE_ORIGIN_KEY }}"
 
-  api-backup:
-    needs: api-sync
-    runs-on: ubuntu-24.04-arm
-    steps:
-      - name: Configura chave SSH
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.SSH_DEPLOY_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "${{ vars.VM_HOST }}" >> ~/.ssh/known_hosts
-
-      - name: Backup de seguranca do Postgres (antes de qualquer mudanca)
-        run: |
-          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
-            "/opt/oikos/scripts/backup-postgres.sh"
-
   api-migrate:
-    needs: api-backup
+    needs: api-sync
     runs-on: ubuntu-24.04-arm
     steps:
       - name: Configura chave SSH
@@ -413,12 +397,6 @@ jobs:
               fi
             fi
           "
-
-      - name: Backup de seguranca do Postgres (so quando a versao do api muda)
-        if: steps.versions.outputs.api_changed == 'true'
-        run: |
-          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
-            "/opt/oikos/scripts/backup-postgres.sh"
 
       # up -d simples resolve mudanca de config - ver docs/docker-infra.md#3 (ticket 10)
       - name: Aplica mudancas de config nos servicos de infra que nao sao nginx/alloy
