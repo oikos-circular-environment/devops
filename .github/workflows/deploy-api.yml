@@ -109,13 +109,6 @@ jobs:
           vm-host: ${{ vars.VM_HOST }}
           obs-private-ip: ${{ vars.OBSERVABILITY_PRIVATE_IP }}
 
-      - name: Materializa certificado Cloudflare Origin CA
-        run: |
-          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
-            "cat > /opt/oikos/docker/certs/origin.pem" <<< "${{ secrets.CLOUDFLARE_ORIGIN_CERT }}"
-          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
-            "cat > /opt/oikos/docker/certs/origin.key && chmod 600 /opt/oikos/docker/certs/origin.key" <<< "${{ secrets.CLOUDFLARE_ORIGIN_KEY }}"
-
   migrate:
     needs: sync
     runs-on: ubuntu-24.04-arm
