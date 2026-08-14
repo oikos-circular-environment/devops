@@ -62,3 +62,15 @@ Estado final na VM: só `oikos-web-restart.timer` habilitado, próxima execuçã
 `oikos-web-restart.service` ganhou os três `--env-file`, acompanhando a fragmentação do [T05](./05-fragmentar-envs.md) — sem isso o restart noturno rodaria sem as variáveis.
 
 **Validações**: `terraform validate` Success, `terraform fmt -check -recursive` limpo, `actionlint` exit 0, `bash -n` no script novo, e o template do cloud-init parseando como YAML válido.
+
+**Quarto passo manual, achado ao responder "o rebuild derruba a observabilidade também?" (2026-08-14)**
+
+Sim: `module.compute.oci_core_instance.observability` também está em `must be replaced` no plan, porque as duas VMs compartilham o mesmo `init.yaml.tftpl`. E a `E2.1.Micro` tinha o mesmo tipo de buraco da `A1.Flex`:
+
+`observability/.env.observability` (que carrega `GF_ADMIN_USER`/`GF_ADMIN_PASSWORD` do Grafana) é **gitignored e não era renderizado por workflow nenhum**. Na VM, o arquivo tinha timestamp `Jul 23 02:10` — do bootstrap — enquanto os arquivos sincronizados pelo CI eram de `Aug 14 16:13`. Nunca tinha sido tocado desde a criação manual.
+
+Pior que sumir: o `env_file` está declarado com `required: false`, então numa VM nova o compose **não falharia** — o Grafana subiria com `GF_SECURITY_ADMIN_USER`/`GF_SECURITY_ADMIN_PASSWORD` vazios, em silêncio, com `GF_AUTH_ANONYMOUS_ENABLED=true` e role `Admin`.
+
+Corrigido no mesmo padrão dos outros fragmentos: `deploy-stack.yml` renderiza o `.env.observability` no runner a partir de `secrets.GF_ADMIN_PASSWORD` + `vars.GF_ADMIN_USER` (Environment `infra-production`), copia junto do `scp -r observability` e apaga do runner em seguida. Os valores atuais foram lidos da VM e cadastrados no Environment.
+
+**O que o rebuild da E2.1.Micro leva junto, e não volta**: os volumes `prometheus_data`, `loki_data`, `tempo_data` e `grafana_data` — histórico de métricas, logs e traces. Dashboards e datasources voltam, porque vêm de `grafana/provisioning` e `grafana/dashboards`, versionados no repo. Perda aceita (dado de telemetria, projeto em MVP), mas registrada para não virar surpresa.

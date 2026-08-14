@@ -137,8 +137,14 @@ jobs:
       - name: Sincroniza e reconcilia a stack de observabilidade na E2.1.Micro
         env:
           BASTION: ssh -i ~/.ssh/deploy_key -W %h:%p deploy@${{ vars.VM_HOST }}
+          GF_ADMIN_PASSWORD: ${{ secrets.GF_ADMIN_PASSWORD }}
         run: |
+          cat > observability/.env.observability <<EOF
+          GF_ADMIN_USER=${{ vars.GF_ADMIN_USER }}
+          GF_ADMIN_PASSWORD=${GF_ADMIN_PASSWORD}
+          EOF
           scp -i ~/.ssh/deploy_key -o ProxyCommand="$BASTION" -o StrictHostKeyChecking=accept-new -r observability \
             deploy@"${{ vars.OBSERVABILITY_PRIVATE_IP }}":/opt/oikos/
+          rm -f observability/.env.observability
           ssh -i ~/.ssh/deploy_key -o ProxyCommand="$BASTION" -o StrictHostKeyChecking=accept-new deploy@"${{ vars.OBSERVABILITY_PRIVATE_IP }}" \
             "cd /opt/oikos/observability && docker compose -f docker-compose.observability.yml -f docker-compose.observability.prod.yml up -d --no-deps prometheus loki tempo grafana alertmanager"
