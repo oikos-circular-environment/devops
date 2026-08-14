@@ -6,10 +6,10 @@ Racional de arquitetura, achados de produção e orçamento de capacidade da sta
 
 - **Trigger de `push`**: qualquer merge em `production` reconcilia a stack inteira (job `stack-production`). `paths-ignore` exclui `docs/`, `plans/`, `**/*.md` e `infra/terraform/**` — esses não afetam a stack, e o Terraform é aplicado separadamente no Terraform Cloud, com aprovação manual depois do merge (rodar a stack no push reconvergeria contra a infra antiga; pra reconvergir pós-apply, usar `workflow_dispatch service=stack`).
 - **`concurrency: group: deploy-vm`**: único grupo, não por ação/serviço — as pipelines api/web/stack mexem nos mesmos arquivos/containers na mesma VM, então precisam ser serializadas entre si, não só contra reexecuções de si mesmas.
-- **Estrutura dos jobs api/web**: `api` é `build → sync → backup → migrate → deploy-container`; `web` é `build → sync → deploy-container` (sem backup/migrate — não existe migration do Prisma pro web). Só o job de build tem o `if:` de gatilho; os downstream com `needs:` são pulados automaticamente quando o build é pulado.
+- **Estrutura dos jobs api/web**: `api` é `build → sync → migrate → deploy-container`; `web` é `build → sync → deploy-container` (sem migrate — não existe migration do Prisma pro web). Só o job de build tem o `if:` de gatilho; os downstream com `needs:` são pulados automaticamente quando o build é pulado.
 - **Runner arm64 nativo** (`ubuntu-24.04-arm`): build cross-arch via QEMU (`docker/setup-qemu-action`) travava com `qemu: uncaught target signal 4 (Illegal instruction)` durante o `npm ci`, sem reportar falha (ficava preso indefinidamente). A A1.Flex também é arm64 (Ampere), então a imagem buildada aqui roda nativa lá, sem tradução nenhuma.
 - **Resolução de versão/SHA** `(ver ticket 12)`: vem do `repository_dispatch` (sempre preenchidos) ou do `workflow_dispatch` (opcionais) — quando vazios, resolve a última tag SemVer do repo via API (`sort -V`, não a ordem da API, que não é garantida) e o commit dela. Tag anotada aponta pra um objeto tag, não pro commit — por isso a dereferência condicional (`TYPE == "tag"`).
-- **`sort -V` + gate `api_changed`** (job `stack-production`): mesmo motivo do `sort -V` acima; `api_changed` decide se backup+migration rodam (só quando a versão do api realmente avança — mesma proteção do fluxo de release normal).
+- **`sort -V` + gate `api_changed`** (job `stack-production`): mesmo motivo do `sort -V` acima; `api_changed` decide se a migration roda (só quando a versão do api realmente avança — mesma proteção do fluxo de release normal).
 - **Bump de versão via `sed`**: tanto em `web-sync` quanto em `stack-production`, só a linha de versão é tocada, nunca um secret — o valor é sempre uma tag SemVer de formato controlado, seguro pra `sed` sem risco de caractere especial.
 
 ## 2. Secrets & Environment
@@ -101,13 +101,10 @@ Pré-requisito: `cp observability/.env.observability.example observability/.env.
 
 ## 7. Backup & Migração de Dados
 
-- **Backup diário (Postgres + Redis)** `(ver ticket 08)`: roda na A1.Flex via systemd timer (`docker/systemd/oikos-backup.timer`). Autentica no Object Storage via **Instance Principal** — sem nenhuma credencial estática na VM; a OCI CLI precisa estar instalada (ver abaixo). Redis usa `SAVE` síncrono (não `BGSAVE`), pra garantir que o arquivo está completo antes de copiar.
-- **Bug de visibilidade de env em processo filho do compose** `(ver ticket 09)`: `set -a` exporta as variáveis pro ambiente do processo, não só pro shell atual — sem isso, `docker compose exec` (processo filho) não enxergava nenhuma delas (achado no teste real: `exec` falhava com "no password supplied" mesmo com o arquivo `sourced` corretamente).
-- **Pré-requisito manual da OCI CLI** (`oikos-backup.service`): instalação única, não automatizada no systemd unit de propósito — instalar via script genérico de terceiros dentro de uma unit que roda todo dia sem supervisão é frágil demais pra esse caso.
-  ```
-  curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh | bash -s -- --accept-all-defaults
-  ```
-  Passo a passo completo `(ver ticket 08)`.
-- **Migração one-time de dados** (`scripts/migrate-data.sh`) `(ver ticket 10)`: migração única de Postgres + MinIO da máquina de desenvolvimento pra VM Oracle, no cutover. Uso manual/assistido, distinto do backup recorrente `(ver ticket 08)`. Roda a partir da máquina de desenvolvimento (acesso direto à origem); o destino (VM Oracle) é alcançado via SSH.
+O backup automatizado foi **removido do caminho de deploy e do repositório** (2026-08-14, [devops#76](https://github.com/oikos-circular-environment/devops/issues/76)). Não existe mais job de backup no `deploy.yml`, nem `scripts/backup-postgres.sh`/`backup-redis.sh`, nem as units `docker/systemd/oikos-backup.service`/`.timer`. Na VM ele também já não rodava de fato: a OCI CLI (instalada manualmente, uma única vez) e as units systemd nunca voltaram depois que a VM foi recriada num redeploy. O redesenho é a issue [devops#90](https://github.com/oikos-circular-environment/devops/issues/90).
 
-Procedimento de restore (não de backup) está em [`docs/backup-restore-runbook.md`](./backup-restore-runbook.md).
+- **Por que saiu do caminho de deploy**: o job `api-backup` bloqueava deploy de código sem nenhuma relação com backup — foi assim que a `api` ficou um mês travada na `v0.1.1`, porque `api-migrate` e `api-deploy-container` dependiam dele via `needs:`. Backup passa a ser assunto próprio, fora do fluxo de release.
+- **`infra/terraform/storage/` mantido de propósito**: bucket `oikos-backups` + `oci_identity_dynamic_group` + `oci_identity_policy` + lifecycle continuam no repo — o caro de recriar é o IAM escopado ao OCID da instância, não o bucket (vazio, custa zero); o redesenho (#90) vai reusar.
+- **Migração one-time de dados** (`scripts/migrate-data.sh`) `(ver ticket 10)`: migração única de Postgres + MinIO da máquina de desenvolvimento pra VM Oracle, no cutover. Uso manual/assistido, distinto do backup recorrente (que não roda mais). Roda a partir da máquina de desenvolvimento (acesso direto à origem); o destino (VM Oracle) é alcançado via SSH.
+
+Procedimento de restore (não de backup) está em [`docs/backup-restore-runbook.md`](./backup-restore-runbook.md) — continua sendo a referência de restore manual dos objetos do bucket `oikos-backups`, que segue existindo.
