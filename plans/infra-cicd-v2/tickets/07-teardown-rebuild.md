@@ -1,6 +1,6 @@
 # T07 — Teardown e rebuild do zero
 
-**Status**: não iniciada.
+**Status**: **em andamento** — teardown executado em 2026-08-14, subida aguardando liberação do usuário.
 **Repositório**: `devops`
 **Depende de**: [T01](./01-salvaguarda-dados.md) (bloqueante) e [T06](./06-provisionamento-declarativo.md)
 
@@ -41,3 +41,28 @@ Destruir a infra OCI inteira e subir do zero pelo Terraform. **Downtime é aceit
 ## Registro de execução
 
 _(preencher durante a execução)_
+
+## Registro de execução
+
+**2026-08-14 — teardown**
+
+O workspace `oracle-server` é **VCS-connected**, então `terraform destroy` pela CLI é recusado (`Apply not allowed for workspaces with a VCS connection`). O caminho suportado é a API do Terraform Cloud: `POST /api/v2/runs` com `is-destroy: true`. Run `run-HpCGSSgDTibFXEUS`, **30 recursos destruídos** — as 2 VMs, a rede inteira (VCN, 2 subnets, internet/NAT gateway, 2 route tables, security list), os 5 registros DNS, o certificado Origin CA, ruleset/bot management/Turnstile, os 3 zone settings e o bucket `oikos-backups` com o IAM associado.
+
+### Pré-requisitos da subida (não esquecer)
+
+Dois recursos Cloudflare **mudam de valor ao serem recriados** e invalidam secrets já cadastrados:
+
+1. **`cloudflare_origin_ca_certificate`** — novo par cert/chave. `CLOUDFLARE_ORIGIN_CERT` e `CLOUDFLARE_ORIGIN_KEY` (secrets de repositório) precisam ser reescritos a partir de `terraform output -raw origin_certificate_pem` / `origin_private_key_pem`. Sem isso o nginx sobe com certificado que a Cloudflare não reconhece.
+2. **`cloudflare_turnstile_widget`** — nova sitekey e secret. `TURNSTILE_SITE_KEY` (var) e `TURNSTILE_SECRET_KEY` (secret) no Environment `web-production` ficam obsoletos, e o formulário de `/suporte` quebra até serem atualizados.
+
+Mais os já previstos: `VM_HOST` e `OBSERVABILITY_PRIVATE_IP`, e os IPs em `docs/infrastructure.md`.
+
+### Sobre o DNS cair na Squarespace durante a janela
+
+Diagnóstico fechado nesta sessão. A zona é `full` no Cloudflare, a delegação no TLD `.company` aponta corretamente para `todd`/`katja.ns.cloudflare.com`, e **não há registro DS** (DNSSEC desligado no registrar, então não é o caso clássico de DS órfão). O que explica o sintoma é o `original_registrar: squarespace domains ii llc` (herdeira do Google Domains — `original_ns` são `ns-cloud-*.googledomains.com`): enquanto o apex não existir na zona, a resposta é NXDOMAIN e o domínio cai no que o registrar servir.
+
+Consequência prática, registrada para as próximas vezes: **`destroy` apaga `cloudflare_dns_record.apex` e `.www`**, criando exatamente essa janela. Um `apply` sozinho **não** cria — quando só o `user_data` muda, os registros aparecem como `updated in-place` (só o `content` troca de IP) e o `www` nem entra no plano, por ser CNAME para o apex e independente do IP.
+
+**Regra para os próximos rebuilds: rebuild é `apply`, não `destroy` + `apply`.** Alterar o cloud-init já marca as VMs como `must be replaced`, o que recria as instâncias sem nunca remover o DNS. O `destroy` desta vez foi pedido explicitamente para começar do zero.
+
+A zona tem 20 registros e o Terraform gerencia 5 — os outros 15 (MX iCloud, SPF/DKIM/DMARC, Resend, `survey` → Vercel, os `local-*` de cloudflared tunnel) não estão no state e sobreviveram ao teardown.
