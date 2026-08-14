@@ -55,10 +55,6 @@ Um PR com erro de lint ou teste quebrado é barrado antes do merge, igual nos do
 
 ## Registro de execução
 
-_(preencher durante a execução)_
-
-## Registro de execução
-
 **2026-08-14** — Suíte e2e do `web` executada localmente pela primeira vez (`CI=1 npx playwright test`, após `npm ci` — o `node_modules` local estava sem o `zustand` que veio no web#50).
 
 Resultado: **81 passaram, 6 falharam**. As 6 falhas são todas de `e2e/header-account-button.spec.ts` (2 casos × 3 viewports), e são falhas **legítimas**:
