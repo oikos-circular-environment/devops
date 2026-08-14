@@ -1,6 +1,6 @@
 # T07 — Teardown e rebuild do zero
 
-**Status**: **em andamento** — teardown executado em 2026-08-14, subida aguardando liberação do usuário.
+**Status**: **em andamento, parado em 2026-08-14** — infra recriada, deploys falharam e foram corrigidos; retomar pelo passo 1 de "Onde parou".
 **Repositório**: `devops`
 **Depende de**: [T01](./01-salvaguarda-dados.md) (bloqueante) e [T06](./06-provisionamento-declarativo.md)
 
@@ -62,3 +62,34 @@ Consequência prática, registrada para as próximas vezes: **`destroy` apaga `c
 **Regra para os próximos rebuilds: rebuild é `apply`, não `destroy` + `apply`.** Alterar o cloud-init já marca as VMs como `must be replaced`, o que recria as instâncias sem nunca remover o DNS. O `destroy` desta vez foi pedido explicitamente para começar do zero.
 
 A zona tem 20 registros e o Terraform gerencia 5 — os outros 15 (MX iCloud, SPF/DKIM/DMARC, Resend, `survey` → Vercel, os `local-*` de cloudflared tunnel) não estão no state e sobreviveram ao teardown.
+
+## Onde parou (2026-08-14, fim do dia)
+
+A infra foi recriada com sucesso (`run-FxVSPiRKdpAodKSb`, 27 recursos + 3 imports). IPs novos: **`157.151.31.135`** (A1.Flex) e **`10.0.2.70`** (E2.1.Micro), já atualizados em `vars.VM_HOST` e `vars.OBSERVABILITY_PRIVATE_IP`, junto com `CLOUDFLARE_ORIGIN_CERT`/`_KEY` e `TURNSTILE_SITE_KEY`/`_SECRET_KEY`, todos lidos dos outputs do Terraform.
+
+**O cloud-init do [T06](./06-provisionamento-declarativo.md) funcionou**: a VM subiu com `/opt/oikos` criado, dono `deploy`, fragmentos de env em `600` e Docker pronto — sem nenhum comando manual.
+
+Dos quatro deploys, só o `deploy-infra` passou. Os outros três falharam e as correções já estão na branch (PR #92), mas **ainda não foram exercitadas de ponta a ponta**.
+
+### Estado atual da infra
+
+- As duas VMs estão de pé, mas com **caminhos envenenados** pelo run que falhou: `/opt/oikos/docker/init-db.sh` e `/opt/oikos/observability/prometheus/prometheus.yml` foram criados pelo Docker como diretórios `root` quando o arquivo do bind-mount não existia. Enquanto estiverem lá, o `scp` volta a falhar.
+- O banco na VM tem schema aplicado e dados de teste da validação — **não é o dado restaurado do dump**.
+- `oikos.company`, `www`, `api`, `grafana` e `minio` **não resolvem**: os registros foram destruídos no teardown e recriados apontando para o IP novo, mas sem aplicação servindo.
+
+### Retomada — nesta ordem
+
+1. **Merge da PR #92** em `development` e depois `development` → `production`. Os workflows rodam a partir de `production`; sem isso o CI corrigido não existe lá. A PR irmã `api#89` pode ser mergeada em paralelo (não bloqueia a infra).
+2. **Recriar as duas instâncias** via Terraform com `replace-addrs` — não `destroy`. Limpa os caminhos envenenados e valida o pipeline corrigido a partir de VM limpa, sem apagar registro DNS (o apex é `updated in-place`, evitando a janela de NXDOMAIN em que o domínio cai na Squarespace).
+3. **Atualizar de novo** `VM_HOST` e `OBSERVABILITY_PRIVATE_IP` — o replace muda os IPs outra vez. O cert Origin CA e o Turnstile **não** mudam nesse passo (são recursos Cloudflare, não recriados pelo replace das instâncias).
+4. **Disparar na ordem**: `deploy-infra` → `deploy-api` → `deploy-web` → `deploy-observability`. Os três primeiros serializam pelo grupo `deploy-vm`; o de observabilidade roda em paralelo, por ter concurrency própria.
+5. **Restaurar os dumps** do [T01](./01-salvaguarda-dados.md), se ainda fizer sentido — são dados de teste de MVP e o usuário já disse que a perda não implica nada. Decidir na hora se vale o esforço.
+6. **Atualizar os IPs** em `docs/infrastructure.md` (hoje ainda listam `167.126.6.162` / `10.0.1.155` / `10.0.2.51`, todos mortos).
+7. Fechar o checklist deste ticket e o da [T05](./05-fragmentar-envs.md) — o item "uma release real de api e de web passando pelo caminho novo" só fecha depois disso.
+
+### Pendências que não bloqueiam a retomada
+
+- **Secrets órfãos em `api-production`** (`POSTGRES_*`, `REDIS_PASSWORD`, `MINIO_*`, `CLIENT_API_KEY`, `TURNSTILE_*`): só remover depois de uma release real de `api` e de `web` passar pelo caminho novo, como registrado no [T05](./05-fragmentar-envs.md).
+- **`cloudflare/.env.cloudflare` local** guarda um token da Cloudflare **inválido** (`{"success":false,"code":1000,"Invalid API Token"}`). Não é o token que o Terraform usa (esse vive no workspace do TFC e está funcionando), mas confunde. Apagar ou atualizar.
+- **Revisão de `scripts/` e `docker/systemd/`**: ver [T09](./09-revisar-scripts-e-systemd.md).
+- **`web#51`**: o `AccountMenuButton` nunca foi plugado no header — o `web` em `development` está sem Entrar, Registrar e acesso ao dashboard. Bloqueia o [T08](./08-padronizar-ci-api-web.md).
