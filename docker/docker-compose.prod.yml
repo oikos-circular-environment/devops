@@ -11,7 +11,6 @@ services:
       POSTGRESQL_USERNAME: ${POSTGRES_USER}
       POSTGRESQL_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRESQL_DATABASE: ${POSTGRES_DB}
-      POSTGRESQL_DATABASE_EXTENSIONS: postgis
       POSTGRESQL_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRESQL_MAX_CONNECTIONS: "50"
       POSTGRESQL_SHARED_BUFFERS: "128MB"
@@ -21,7 +20,6 @@ services:
       POSTGRESQL_EXTRA_FLAGS: "-c io_method=sync"
     volumes:
       - postgresql_data:/bitnami/postgresql
-      - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
     deploy:
       resources:
         limits:

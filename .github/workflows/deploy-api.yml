@@ -122,10 +122,24 @@ jobs:
           ssh-private-key: ${{ secrets.SSH_DEPLOY_KEY }}
           vm-host: ${{ vars.VM_HOST }}
 
+      - name: Autentica a VM no GHCR
+        uses: ./.github/actions/vm-ghcr-login
+        with:
+          vm-host: ${{ vars.VM_HOST }}
+          username: ${{ github.actor }}
+          token: ${{ secrets.GHCR_PAT }}
+
+      # DATABASE_URL de superuser so aqui - postgis nao e extensao trusted e o
+      # usuario da aplicacao nao pode cria-la; em runtime o api segue limitado
       - name: Roda a migration (para o deploy se falhar - container antigo continua servindo)
         run: |
-          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
-            "cd /opt/oikos/docker && docker compose --env-file .env.infra --env-file .env.api --env-file .env.web -f docker-compose.prod.yml run --rm api npx prisma migrate deploy"
+          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" '
+            cd /opt/oikos/docker
+            set -a; . ./.env.infra; set +a
+            docker compose --env-file .env.infra --env-file .env.api --env-file .env.web -f docker-compose.prod.yml \
+              run --rm -e DATABASE_URL="postgresql://postgres:${POSTGRES_PASSWORD}@postgresql:5432/${POSTGRES_DB}" \
+              api npx prisma migrate deploy
+          '
 
   deploy-container:
     needs: migrate
@@ -139,6 +153,13 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_DEPLOY_KEY }}
           vm-host: ${{ vars.VM_HOST }}
+
+      - name: Autentica a VM no GHCR
+        uses: ./.github/actions/vm-ghcr-login
+        with:
+          vm-host: ${{ vars.VM_HOST }}
+          username: ${{ github.actor }}
+          token: ${{ secrets.GHCR_PAT }}
 
       - name: Deploy targeted do servico api
         run: |
