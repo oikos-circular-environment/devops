@@ -59,10 +59,6 @@ Um deploy de `web` sozinho entrega variável de ambiente nova em produção **se
 
 ## Registro de execução
 
-_(preencher durante a execução)_
-
-## Registro de execução
-
 **2026-08-14** — Implementado. `actionlint` v1.7.7 exit 0 nos 3 workflows; zero referência residual a `.env.prod` em `.github/` e `docker/`.
 
 **Validação por `docker compose config`** (o teste que importa, feito local com fragmentos de exemplo):
