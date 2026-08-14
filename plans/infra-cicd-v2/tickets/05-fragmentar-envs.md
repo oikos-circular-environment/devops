@@ -1,6 +1,6 @@
 # T05 — Fragmentar as envs por dono
 
-**Status**: não iniciada.
+**Status**: **concluída** em 2026-08-14 (falta validar num deploy real, ver [T07](./07-teardown-rebuild.md)).
 **Repositório**: `devops`
 **Depende de**: [T04](./04-quebrar-deploy-yml.md)
 
@@ -41,15 +41,15 @@ Morre o hack de preservar `WEB_VERSION` durante o render do `api-sync` (`CURRENT
 
 ## Checklist
 
-- [ ] Conferir `docker compose version` na VM (pré-requisito)
-- [ ] Criar Environment `infra-production` e **copiar** (não mover ainda) os secrets de infra de `api-production`
-- [ ] Adicionar `CLIENT_API_KEY` e `TURNSTILE_*` ao Environment `web-production`
-- [ ] Job de render de `.env.infra` em `deploy-stack.yml`, validado na VM sem ainda plugar no compose
-- [ ] Job de render de `.env.web` em `deploy-web.yml`
-- [ ] `api-sync` passa a renderizar só `.env.api`
-- [ ] `docker-compose.prod.yml` com `env_file` múltiplo; comandos de deploy com os três `--env-file`
-- [ ] Validar com `docker compose config` antes do primeiro `up -d`
-- [ ] Uma release real de `api` **e** uma de `web` passando pelo caminho novo
+- [x] Conferir `docker compose version` na VM — **v2.40.3**, bem acima do 2.24 exigido
+- [x] Environment `infra-production` criado com `POSTGRES_USER/PASSWORD`, `REDIS_PASSWORD`, `MINIO_ACCESS_KEY/SECRET_KEY`
+- [x] `CLIENT_API_KEY`, `TURNSTILE_SECRET_KEY` (secrets) e `TURNSTILE_SITE_KEY` (var) adicionados ao `web-production`
+- [x] Render de `.env.infra` em `deploy-stack.yml` (`environment: infra-production`)
+- [x] Render de `.env.web` em `deploy-web.yml` (job `sync` ganhou `environment: web-production`)
+- [x] `sync` do `deploy-api.yml` renderiza só `.env.api`
+- [x] `docker-compose.prod.yml` com `env_file` múltiplo; os três `--env-file` em todos os comandos de deploy
+- [x] Validado com `docker compose config` local usando os três fragmentos
+- [ ] Uma release real de `api` **e** uma de `web` passando pelo caminho novo (depois do rebuild, [T07](./07-teardown-rebuild.md))
 - [ ] Só então: apagar `.env.prod` antigo da VM e os secrets órfãos em `api-production`
 - [ ] Atualizar `docs/docker-infra.md#2`
 
@@ -60,3 +60,21 @@ Um deploy de `web` sozinho entrega variável de ambiente nova em produção **se
 ## Registro de execução
 
 _(preencher durante a execução)_
+
+## Registro de execução
+
+**2026-08-14** — Implementado. `actionlint` v1.7.7 exit 0 nos 3 workflows; zero referência residual a `.env.prod` em `.github/` e `docker/`.
+
+**Validação por `docker compose config`** (o teste que importa, feito local com fragmentos de exemplo):
+
+- `DATABASE_URL` → `postgresql://oikos:senha-infra@postgresql:5432/oikos` e `REDIS_URL` → `redis://:senha-redis@redis:6379`, montados a partir do `.env.infra`.
+- Tags de imagem resolvendo do fragmento certo: `api:v0.3.1` (do `.env.api`) e `web:v0.4.2` (do `.env.web`).
+- Serviço `api` recebendo variável dos **dois** arquivos que consome (`JWT_SECRET` do `.env.api`, `MINIO_ACCESS_KEY` do `.env.infra`).
+- Serviço `web` recebendo `CLIENT_API_KEY`/`TURNSTILE_*` por interpolação, sem `env_file` próprio, como planejado.
+- Única ocorrência de `${` remanescente na saída é o `$${MINIO_ACCESS_KEY}` do `entrypoint` do `createbuckets` — escape intencional, o valor é expandido pelo shell dentro do container.
+
+**Correção não prevista no ticket**: `--env-file` **aborta se o arquivo não existir**, então num rebuild do zero o primeiro `docker compose` falharia — nenhum dos três fragmentos existe numa VM nova. A composite action `sync-deploy-files` e o step de sync do `deploy-stack.yml` passaram a fazer `touch` dos três arquivos junto do `mkdir -p`, de forma idempotente. Sem isso o [T07](./07-teardown-rebuild.md) quebraria no primeiro deploy.
+
+**`.gitignore`**: passou a ignorar `docker/.env.{infra,api,web}` — antes só `docker/.env.prod` estava coberto, e um render local de teste entraria no commit.
+
+**Pendente de propósito**: os secrets duplicados em `api-production` (`POSTGRES_*`, `REDIS_PASSWORD`, `MINIO_*`, `CLIENT_API_KEY`, `TURNSTILE_*`) **não** foram removidos ainda. Só saem depois de uma release real de `api` e de `web` passar pelo caminho novo — remover antes deixaria o pipeline antigo sem rede de segurança se precisar reverter.
