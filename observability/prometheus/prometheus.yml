@@ -1,0 +1,17 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+
+scrape_configs:
+  # Métricas da aplicação (via OTel Collector prometheus exporter)
+  - job_name: oikos-api
+    static_configs:
+      - targets:
+          - otelcol:8889
+
+  # Métricas internas do OTel Collector
+  - job_name: otelcol
+    static_configs:
+      - targets:
+          - otelcol:8888

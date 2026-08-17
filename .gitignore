@@ -15,7 +15,6 @@ docker/certs/
 # data/*.json
 
 # Volumes Docker persistidos localmente
-observability/prometheus/
 observability/grafana/data/
 observability/loki/chunks/
 observability/tempo/blocks/

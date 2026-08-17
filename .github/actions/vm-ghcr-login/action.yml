@@ -1,0 +1,24 @@
+name: Autentica a VM no GHCR
+description: Faz docker login no GHCR dentro da VM, necessario pra puxar as imagens privadas
+inputs:
+  vm-host:
+    description: Host da VM de destino
+    required: true
+  username:
+    description: Usuario do GHCR
+    required: true
+  token:
+    description: Token com permissao de leitura de packages
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Autentica a VM no GHCR
+      shell: bash
+      env:
+        VM_HOST: ${{ inputs.vm-host }}
+        GHCR_USER: ${{ inputs.username }}
+        GHCR_TOKEN: ${{ inputs.token }}
+      run: |
+        ssh -i ~/.ssh/deploy_key deploy@"$VM_HOST" \
+          "docker login ghcr.io -u '$GHCR_USER' --password-stdin" <<< "$GHCR_TOKEN"
