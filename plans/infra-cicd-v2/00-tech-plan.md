@@ -93,7 +93,7 @@ O `web` precisa de `NEXT_PUBLIC_API_URL` e `NEXT_PUBLIC_CLIENT_API_KEY` **em bui
 | T06 provisionamento declarativo | concluída — **validada no rebuild**: VM nova subiu sem passo manual |
 | T07 teardown e rebuild | **concluída** — ver "Retomada concluída" no ticket |
 | T08 padronizar CI | bloqueada por [web#51](https://github.com/oikos-circular-environment/web/issues/51) |
-| T09 revisar scripts/systemd | não iniciada |
+| T09 revisar scripts/systemd | concluída — `migrate-data.sh` e `oikos-web-restart.{service,timer}` removidos |
 
 Detalhe da retomada e do achado do `BETTER_AUTH_SECRET` faltando: [T07 → "Retomada concluída"](./tickets/07-teardown-rebuild.md).
 

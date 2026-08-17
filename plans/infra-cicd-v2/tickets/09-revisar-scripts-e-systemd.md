@@ -1,6 +1,6 @@
 # T09 — Revisar o que sobrou em `scripts/` e `docker/systemd/`
 
-**Status**: não iniciada. Levantamento feito em 2026-08-14, decisão adiada a pedido do usuário.
+**Status**: concluída em 2026-08-17.
 **Repositório**: `devops`
 
 ## Escopo
@@ -44,11 +44,11 @@ Este ticket fecha a ponta oposta da mesma questão — o que está no repo e tal
 
 ## Checklist
 
-- [ ] Verificar se o vazamento de memória do Next.js ainda se reproduz na 16.3.0
-- [ ] Decidir o destino do `oikos-web-restart.{service,timer}`: manter, substituir por alerta de memória no Alertmanager, ou remover
-- [ ] Decidir o destino do `scripts/migrate-data.sh`
-- [ ] Se algo for removido, confirmar que o `reconcile-systemd.sh` tirou a unit da VM (é o que ele existe para fazer)
-- [ ] Atualizar `docs/docker-infra.md` e o ticket 06 do `oracle-cloud-migration` conforme a decisão
+- [x] Verificar se o vazamento de memória do Next.js ainda se reproduz na 16.3.0
+- [x] Decidir o destino do `oikos-web-restart.{service,timer}`: manter, substituir por alerta de memória no Alertmanager, ou remover
+- [x] Decidir o destino do `scripts/migrate-data.sh`
+- [x] Se algo for removido, confirmar que o `reconcile-systemd.sh` tirou a unit da VM (é o que ele existe para fazer)
+- [x] Atualizar `docs/docker-infra.md` e o ticket 06 do `oracle-cloud-migration` conforme a decisão
 
 ## Definição de Pronto
 
@@ -56,4 +56,8 @@ Todo arquivo em `scripts/` e `docker/systemd/` tem uso confirmado e documentado,
 
 ## Registro de execução
 
-_(preencher durante a execução)_
+- **`vercel/next.js#88603` segue aberta**, sem fix confirmado. Duas correções entraram na 16.2.0 e ajudaram parte dos relatos, mas usuários seguem reportando OOM em 16.2.3 (comentário de 2026-04-12, sugerindo GC manual via `instrumentation.ts` como mitigação adicional). Nenhum relato aponta a versão rodada em produção (16.3.0) especificamente — não dá pra concluir que o leak sumiu.
+- **`oikos-web-restart.{service,timer}` removidos mesmo assim.** `docker-compose.prod.yml` já tem `restart: unless-stopped` no `web` — se o container morrer por OOM (o teto `--max-old-space-size=384` existe pra isso), o Docker sobe de novo sozinho; o timer era mitigação proativa pra evitar esse crash, não a única rede de segurança. Decisão do usuário: monitorar memória do `web` pelos dashboards já existentes no Grafana (`infra-overview.json`, `infra-container.json`, alimentados pelo `cadvisor` que já está rodando) e reativar o timer se o problema aparecer de novo. Diretório `docker/systemd/` mantido (com `.gitkeep`) pra não precisar recriar a mecânica de reconciliação do zero.
+- **`scripts/migrate-data.sh` removido.** Confirmado código morto: única finalidade era o cutover do ticket 10 do `oracle-cloud-migration` (já concluído), sem nenhuma outra referência no repo, e a infra foi reconstruída do zero duas vezes desde então sem precisar dele.
+- **`reconcile-systemd.sh` mantido** — segue em uso ativo por `sync-deploy-files` pra qualquer unit `oikos-*`, não só as de restart. Como o diretório `docker/systemd/` ficou vazio (só `.gitkeep`), o próximo `deploy-infra` faz o `reconcile-systemd.sh` remover as duas units da VM automaticamente — é exatamente o mecanismo que ele existe para fazer, não precisa de passo manual.
+- Atualizado `docs/docker-infra.md` (seção 8) e o ticket 06 do `oracle-cloud-migration` (nota inline no item concluído, sem reabrir o checklist).

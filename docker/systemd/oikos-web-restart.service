@@ -1,9 +1,0 @@
-[Unit]
-Description=Restart oikos-prod web container (mitigação memory leak Next.js, ver 04-tech-plan.md)
-After=docker.service
-Requires=docker.service
-
-[Service]
-Type=oneshot
-WorkingDirectory=/opt/oikos/docker
-ExecStart=/usr/bin/docker compose --env-file .env.infra --env-file .env.api --env-file .env.web -f docker-compose.prod.yml restart web
