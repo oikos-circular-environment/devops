@@ -87,6 +87,9 @@ jobs:
           CLIENT_KEY_MOBILE: ${{ secrets.CLIENT_KEY_MOBILE }}
           CLIENT_KEY_WEB: ${{ secrets.CLIENT_KEY_WEB }}
           BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          # console | in-memory | resend (api/src/env/index.ts) - troca de provedor
+          # e so mudar a var do repositorio, sem editar workflow
+          EMAIL_PROVIDER: ${{ vars.EMAIL_PROVIDER }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           RESEND_FROM_EMAIL: ${{ secrets.RESEND_FROM_EMAIL }}
         run: |
@@ -103,7 +106,7 @@ jobs:
           CLIENT_KEY_WEB=${CLIENT_KEY_WEB}
           CLIENT_KEY_ENFORCE=true
           BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
-          EMAIL_PROVIDER=resend
+          EMAIL_PROVIDER=${EMAIL_PROVIDER}
           RESEND_API_KEY=${RESEND_API_KEY}
           RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL}
           EOF
