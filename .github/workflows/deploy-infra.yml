@@ -69,13 +69,19 @@ jobs:
             "cat > /opt/oikos/docker/certs/origin.key && chmod 600 /opt/oikos/docker/certs/origin.key" <<< "$CLOUDFLARE_ORIGIN_KEY"
 
       # up -d simples resolve mudanca de config - ver docs/docker-infra.md#3 (ticket 10)
+      # pull explicito - essas imagens sao tag flutuante (:latest), up -d sozinho
+      # nao confere o registry se ja existe imagem em cache local (CVE-2026-42533)
       - name: Aplica mudancas de config nos servicos com estado
         run: |
+          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
+            "cd /opt/oikos/docker && docker compose --env-file .env.infra --env-file .env.api --env-file .env.web -f docker-compose.prod.yml pull postgresql redis minio createbuckets cadvisor node-exporter"
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
             "cd /opt/oikos/docker && docker compose --env-file .env.infra --env-file .env.api --env-file .env.web -f docker-compose.prod.yml up -d --no-deps postgresql redis minio createbuckets cadvisor node-exporter"
 
       # gotcha bind-mount - ver docs/docker-infra.md#6 (ticket 11)
       - name: Recria nginx e alloy (bind mount de arquivo unico nao atualiza com reload/restart)
         run: |
+          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
+            "cd /opt/oikos/docker && docker compose --env-file .env.infra --env-file .env.api --env-file .env.web -f docker-compose.prod.yml pull nginx alloy"
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
             "cd /opt/oikos/docker && docker compose --env-file .env.infra --env-file .env.api --env-file .env.web -f docker-compose.prod.yml up -d --force-recreate --no-deps nginx alloy"
