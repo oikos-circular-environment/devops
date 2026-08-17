@@ -18,6 +18,7 @@ services:
     volumes:
       - postgresql_data:/bitnami/postgresql
       - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+      - ./grant-app-privileges.sh:/opt/oikos/grant-app-privileges.sh
     deploy:
       resources:
         limits:

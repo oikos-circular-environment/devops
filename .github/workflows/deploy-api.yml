@@ -139,6 +139,12 @@ jobs:
           username: ${{ github.actor }}
           token: ${{ secrets.GHCR_PAT }}
 
+      # idempotente - roda em todo deploy (ver docs/docker-infra.md#6)
+      - name: Garante privilegios do usuario da app no schema public
+        run: |
+          ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
+            "cd /opt/oikos/docker && docker compose --env-file .env.infra -f docker-compose.prod.yml exec -T postgresql bash /opt/oikos/grant-app-privileges.sh"
+
       - name: Roda a migration (para o deploy se falhar - container antigo continua servindo)
         run: |
           ssh -i ~/.ssh/deploy_key deploy@"${{ vars.VM_HOST }}" \
