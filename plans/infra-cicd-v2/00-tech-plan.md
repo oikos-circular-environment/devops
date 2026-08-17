@@ -89,7 +89,7 @@ O `web` precisa de `NEXT_PUBLIC_API_URL` e `NEXT_PUBLIC_CLIENT_API_KEY` **em bui
 | T02 backup fora do deploy | concluída — redesenho na [devops#90](https://github.com/oikos-circular-environment/devops/issues/90) |
 | T03 composite actions | concluída |
 | T04 split dos workflows | concluída |
-| T05 fragmentar envs | concluída, falta validar num deploy real |
+| T05 fragmentar envs | concluída e validada — deploy real em 17/08 |
 | T06 provisionamento declarativo | concluída — **validada no rebuild**: VM nova subiu sem passo manual |
 | T07 teardown e rebuild | **concluída** — ver "Retomada concluída" no ticket |
 | T08 padronizar CI | bloqueada por [web#51](https://github.com/oikos-circular-environment/web/issues/51) |

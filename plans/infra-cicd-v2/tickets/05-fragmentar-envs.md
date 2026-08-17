@@ -1,6 +1,6 @@
 # T05 — Fragmentar as envs por dono
 
-**Status**: **concluída** em 2026-08-14 (falta validar num deploy real, ver [T07](./07-teardown-rebuild.md)).
+**Status**: **concluída e validada** — `deploy-api`/`deploy-web` rodaram de ponta a ponta em produção em 2026-08-17 ([T07](./07-teardown-rebuild.md)).
 **Repositório**: `devops`
 **Depende de**: [T04](./04-quebrar-deploy-yml.md)
 
