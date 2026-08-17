@@ -96,6 +96,7 @@ jobs:
         run: |
           cat > /tmp/env.web.rendered <<EOF
           WEB_VERSION=${{ needs.build.outputs.version }}
+          NEXT_PUBLIC_API_URL=${{ vars.NEXT_PUBLIC_API_URL }}
           CLIENT_API_KEY=${CLIENT_API_KEY}
           TURNSTILE_SITE_KEY=${TURNSTILE_SITE_KEY}
           TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY}
