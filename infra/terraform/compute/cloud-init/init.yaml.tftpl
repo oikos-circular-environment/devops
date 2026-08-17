@@ -27,7 +27,7 @@ write_files:
 runcmd:
   - systemctl enable --now docker
   - systemctl restart ssh
-  - mkdir -p /opt/oikos/docker/certs /opt/oikos/nginx /opt/oikos/observability /opt/oikos/scripts
+  - mkdir -p /opt/oikos/docker/certs /opt/oikos/nginx /opt/oikos/observability
   - chown -R deploy:deploy /opt/oikos
   - touch /opt/oikos/docker/.env.infra /opt/oikos/docker/.env.api /opt/oikos/docker/.env.web
   - chown deploy:deploy /opt/oikos/docker/.env.infra /opt/oikos/docker/.env.api /opt/oikos/docker/.env.web
