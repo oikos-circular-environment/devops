@@ -81,7 +81,7 @@ T08 (paralelo)
 
 O `web` precisa de `NEXT_PUBLIC_API_URL` e `NEXT_PUBLIC_CLIENT_API_KEY` **em build time** — `web/src/lib/env.ts` lança exceção se a env faltar, e o Next.js inlina `NEXT_PUBLIC_*` no bundle do client, não em runtime. Entrou na branch por cherry-pick (a PR #88 original foi fechada e o trabalho consolidado aqui), e os dois valores já estão cadastrados no Environment `web-production`.
 
-## Estado em 2026-08-14 (fim do dia)
+## Estado em 2026-08-17 (fim do dia)
 
 | Ticket | Situação |
 |---|---|
@@ -89,13 +89,13 @@ O `web` precisa de `NEXT_PUBLIC_API_URL` e `NEXT_PUBLIC_CLIENT_API_KEY` **em bui
 | T02 backup fora do deploy | concluída — redesenho na [devops#90](https://github.com/oikos-circular-environment/devops/issues/90) |
 | T03 composite actions | concluída |
 | T04 split dos workflows | concluída |
-| T05 fragmentar envs | concluída, falta validar num deploy real |
+| T05 fragmentar envs | concluída e validada — deploy real em 17/08 |
 | T06 provisionamento declarativo | concluída — **validada no rebuild**: VM nova subiu sem passo manual |
-| T07 teardown e rebuild | **em andamento** — ver "Onde parou" no ticket |
+| T07 teardown e rebuild | **concluída** — ver "Retomada concluída" no ticket |
 | T08 padronizar CI | bloqueada por [web#51](https://github.com/oikos-circular-environment/web/issues/51) |
 | T09 revisar scripts/systemd | não iniciada |
 
-**Retomar por**: [T07 → "Onde parou"](./tickets/07-teardown-rebuild.md).
+Detalhe da retomada e do achado do `BETTER_AUTH_SECRET` faltando: [T07 → "Retomada concluída"](./tickets/07-teardown-rebuild.md).
 
 ### PRs abertas
 
