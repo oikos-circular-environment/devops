@@ -74,8 +74,49 @@ T08 (paralelo)
 | [05](./tickets/05-fragmentar-envs.md) | Fragmentar as envs por dono | — |
 | [06](./tickets/06-provisionamento-declarativo.md) | Provisionamento 100% declarativo | T07 |
 | [07](./tickets/07-teardown-rebuild.md) | Teardown e rebuild do zero | — |
-| [08](./tickets/08-padronizar-ci-api-web.md) | Padronizar CI de `api` e `web` | — |
+| [08](./tickets/08-padronizar-ci-api-web.md) | Padronizar CI de `api` e `web` | bloqueada por [web#51](https://github.com/oikos-circular-environment/web/issues/51) |
+| [09](./tickets/09-revisar-scripts-e-systemd.md) | Revisar o que sobrou em `scripts/` e `docker/systemd/` | — |
 
-## Pendência já aberta
+## Build-args do `web` (resolvido)
 
-PR [devops#88](https://github.com/oikos-circular-environment/devops/pull/88) adiciona `ARG`/`build-args` de `NEXT_PUBLIC_API_URL` e `NEXT_PUBLIC_CLIENT_API_KEY` no build do `web`. Sem ele o `web` quebra assim que `web#50` chegar em produção: `web/src/lib/env.ts` lança exceção se a env faltar, e o Next.js inlina `NEXT_PUBLIC_*` em build time (não em runtime). Falta cadastrar o secret `NEXT_PUBLIC_CLIENT_API_KEY` no Environment `web-production`.
+O `web` precisa de `NEXT_PUBLIC_API_URL` e `NEXT_PUBLIC_CLIENT_API_KEY` **em build time** — `web/src/lib/env.ts` lança exceção se a env faltar, e o Next.js inlina `NEXT_PUBLIC_*` no bundle do client, não em runtime. Entrou na branch por cherry-pick (a PR #88 original foi fechada e o trabalho consolidado aqui), e os dois valores já estão cadastrados no Environment `web-production`.
+
+## Estado em 2026-08-14 (fim do dia)
+
+| Ticket | Situação |
+|---|---|
+| T01 salvaguarda de dados | concluída — dumps em `/media/ccrs/development/oracle/backup-pre-rebuild-20260814/` |
+| T02 backup fora do deploy | concluída — redesenho na [devops#90](https://github.com/oikos-circular-environment/devops/issues/90) |
+| T03 composite actions | concluída |
+| T04 split dos workflows | concluída |
+| T05 fragmentar envs | concluída, falta validar num deploy real |
+| T06 provisionamento declarativo | concluída — **validada no rebuild**: VM nova subiu sem passo manual |
+| T07 teardown e rebuild | **em andamento** — ver "Onde parou" no ticket |
+| T08 padronizar CI | bloqueada por [web#51](https://github.com/oikos-circular-environment/web/issues/51) |
+| T09 revisar scripts/systemd | não iniciada |
+
+**Retomar por**: [T07 → "Onde parou"](./tickets/07-teardown-rebuild.md).
+
+### PRs abertas
+
+- [devops#92](https://github.com/oikos-circular-environment/devops/pull/92) — correções expostas pelo rebuild
+- [api#89](https://github.com/oikos-circular-environment/api/pull/89) — remove `SUPERUSER` de dev/test + `client_secret_*.json` no `.gitignore`
+
+### Passos manuais que o rebuild do zero desenterrou
+
+Nenhum deles estava documentado como pré-requisito. É o argumento mais forte a favor de ter feito o rebuild:
+
+1. OCI CLI nunca instalada (causa da [#76](https://github.com/oikos-circular-environment/devops/issues/76))
+2. Units systemd copiadas mas nunca registradas
+3. `/opt/oikos` criado à mão com `sudo` — `/opt` é root e o usuário `deploy` não escreve lá
+4. `observability/.env.observability` gitignored e nunca renderizado — o Grafana subiria com credencial de admin **vazia**, em silêncio
+5. `observability/prometheus/prometheus.yml` gitignored junto dos diretórios de dado, sendo config
+6. `docker login` no GHCR na VM — o `pull` de imagem privada falhava com `unauthorized`
+
+### Achados fora do escopo original
+
+- **`ALTER USER ... WITH SUPERUSER`**: o usuário que a API usa em toda requisição tinha superuser permanente. Removido em produção e em dev/test. O `init-db.sh` fica, com uma linha só — comprovado por teste que não dá para eliminá-lo: `CREATE EXTENSION postgis` exige superuser (não é *trusted*), mas as tabelas precisam ser criadas pelo usuário da aplicação, senão ele não é dono delas e leva `permission denied` em toda query.
+- **`POSTGRESQL_DATABASE_EXTENSIONS: postgis`** não cria extensão nenhuma na imagem do bitnami — verificado com volume limpo. Era config morta.
+- **`POSTGRESQL_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}`**: o superuser `postgres` usa a mesma senha do usuário da aplicação. Anula parte do ganho de separar os papéis — merece ticket próprio.
+- **Redis**: a persistência real é AOF, não RDB. O backup removido copiava só o `dump.rdb` (381 B contra 21 MB do AOF) — estava incompleto por desenho, não só quebrado. Registrado na [#90](https://github.com/oikos-circular-environment/devops/issues/90).
+- **`web#51`**: `AccountMenuButton` entregue no web#50 com testes e nunca plugado no header. O `web` em `development` está sem Entrar, Registrar e acesso ao dashboard.
