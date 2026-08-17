@@ -1,6 +1,6 @@
 # T07 — Teardown e rebuild do zero
 
-**Status**: **em andamento, parado em 2026-08-14** — infra recriada, deploys falharam e foram corrigidos; retomar pelo passo 1 de "Onde parou".
+**Status**: **concluído em 2026-08-17** — ver "Retomada concluída" abaixo. Único item não feito: restore dos dumps (decisão do usuário, sem dado relevante a preservar).
 **Repositório**: `devops`
 **Depende de**: [T01](./01-salvaguarda-dados.md) (bloqueante) e [T06](./06-provisionamento-declarativo.md)
 
@@ -22,17 +22,17 @@ Destruir a infra OCI inteira e subir do zero pelo Terraform. **Downtime é aceit
 
 ## Checklist
 
-- [ ] Confirmar [T01](./01-salvaguarda-dados.md) concluída e restore validado
-- [ ] Confirmar [T06](./06-provisionamento-declarativo.md) validada em VM descartável
-- [ ] `terraform destroy` completo
-- [ ] `terraform apply` do zero
-- [ ] Atualizar `vars.VM_HOST` e `vars.OBSERVABILITY_PRIVATE_IP` no repo `devops`
-- [ ] Atualizar IPs em `docs/infrastructure.md`
-- [ ] Conferir cloud-init concluído sem erro nas duas VMs (`cloud-init status`)
-- [ ] Deploy `service=stack` para materializar a stack
-- [ ] Restaurar os dumps de Postgres, Redis e MinIO
-- [ ] Conferir DNS propagado e TLS válido nos domínios
-- [ ] Deploy de `api` e de `web` nas últimas tags publicadas
+- [x] Confirmar [T01](./01-salvaguarda-dados.md) concluída e restore validado
+- [x] Confirmar [T06](./06-provisionamento-declarativo.md) validada em VM descartável
+- [x] `terraform destroy` completo
+- [x] `terraform apply` do zero
+- [x] Atualizar `vars.VM_HOST` e `vars.OBSERVABILITY_PRIVATE_IP` no repo `devops`
+- [x] Atualizar IPs em `docs/infrastructure.md`
+- [x] Conferir cloud-init concluído sem erro nas duas VMs (`cloud-init status`)
+- [x] Deploy `service=stack` para materializar a stack
+- [ ] Restaurar os dumps de Postgres, Redis e MinIO — **não feito de propósito**: dado de teste de MVP, sem nada relevante a preservar (decisão do usuário)
+- [x] Conferir DNS propagado e TLS válido nos domínios
+- [x] Deploy de `api` e de `web` nas últimas tags publicadas
 
 ## Definição de Pronto
 
@@ -86,6 +86,20 @@ Dos quatro deploys, só o `deploy-infra` passou. Os outros três falharam e as c
 5. **Restaurar os dumps** do [T01](./01-salvaguarda-dados.md), se ainda fizer sentido — são dados de teste de MVP e o usuário já disse que a perda não implica nada. Decidir na hora se vale o esforço.
 6. **Atualizar os IPs** em `docs/infrastructure.md` (hoje ainda listam `167.126.6.162` / `10.0.1.155` / `10.0.2.51`, todos mortos).
 7. Fechar o checklist deste ticket e o da [T05](./05-fragmentar-envs.md) — o item "uma release real de api e de web passando pelo caminho novo" só fecha depois disso.
+
+## Retomada concluída (2026-08-17)
+
+`terraform apply -replace` das duas instâncias via API do Terraform Cloud (workspace `oracle-server` é VCS-connected, `apply` pela CLI é recusado — mesmo caminho documentado acima pro `destroy`). Plano bateu com o esperado: 2 destroy + 2 add (só as instâncias), 5 update in-place (DNS + dynamic group), **nenhum registro DNS destruído** — a lição da janela pro Squarespace não se repetiu.
+
+IPs novos: `164.152.241.127` (A1.Flex) / `10.0.1.200` (privado) / `10.0.2.55` (E2.1.Micro). `VM_HOST`/`OBSERVABILITY_PRIVATE_IP` atualizados como vars do repo, `docs/infrastructure.md` atualizado (devops#96). `cloud-init status` = `done` nas duas VMs, sem passo manual.
+
+Disparados na ordem: `deploy-infra` → `deploy-api` → `deploy-web` → `deploy-observability` — os quatro passaram.
+
+**Achado adicional, fora do escopo do teardown em si**: `api` entrou em crash loop na VM nova — `BETTER_AUTH_SECRET` é obrigatório no schema de env desde o PR#86 (fundação Better Auth), mas o `deploy-api.yml` nunca renderizava essa variável. Só existia num `.env` local de um worktree Orca (gitignored), nunca propagado pros secrets de produção — por isso nunca apareceu em dev/CI. Criados `BETTER_AUTH_SECRET` e `RESEND_FROM_EMAIL` no Environment `api-production`, e o render passou a incluir os dois mais `EMAIL_PROVIDER=resend` (devops#97) — o `RESEND_API_KEY` já existia como secret desde 24/07, mas nunca era lido.
+
+Dumps do T01 **não restaurados** — decisão do usuário: dado de teste de MVP, sem nada relevante a preservar.
+
+Health check final: `api.oikos.company/health` (200), `oikos.company` (200), `grafana.oikos.company` (302, login), `minio.oikos.company` (200).
 
 ### Pendências que não bloqueiam a retomada
 
