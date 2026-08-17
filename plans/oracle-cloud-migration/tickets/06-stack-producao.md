@@ -51,7 +51,7 @@ Nenhum destes aparecia nos testes locais — só surgiram testando contra a VM d
 - [x] `nginx/nginx.conf` — roteia `grafana.oikos.company` → IP privado da `E2.1.Micro` — roteamento correto, 502 porque T7 ainda não rodou
 - [x] `nginx/nginx.conf` — roteia `minio.oikos.company` → console do MinIO (porta 9001); porta 9000 (API S3) **não** exposta via nginx — testado via `https://minio.oikos.company` real (200)
 - [x] `nginx/nginx.conf` — TLS com certificado Cloudflare Origin CA — testado via HTTPS real (HTTP/2, TLS ok)
-- [x] `docker/systemd/oikos-web-restart.{service,timer}` — restart noturno (03:00) do `web` (mitigação do memory leak conhecido do Next.js — [vercel/next.js#88603](https://github.com/vercel/next.js/discussions/88603))
+- [x] `docker/systemd/oikos-web-restart.{service,timer}` — restart noturno (03:00) do `web` (mitigação do memory leak conhecido do Next.js — [vercel/next.js#88603](https://github.com/vercel/next.js/discussions/88603)). Removido em 2026-08-17 ([T09](../../infra-cicd-v2/tickets/09-revisar-scripts-e-systemd.md)): a issue segue aberta sem fix confirmado, mas a decisão foi monitorar memória do `web` pelos dashboards do Grafana (já cobrem métricas de container via cAdvisor) e reativar o timer se o problema voltar a aparecer.
 - [x] `api` loga via OTLP (`pino-opentelemetry-transport`), sem volume de logs
 - [x] Build `arm64` real via Buildx+QEMU — imagens publicadas em `ghcr.io/oikos-circular-environment/{api,web}:bootstrap` (tag temporária desta validação; T9 vai gerar tags SemVer reais)
 

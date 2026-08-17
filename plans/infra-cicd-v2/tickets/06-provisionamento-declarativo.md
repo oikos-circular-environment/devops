@@ -21,7 +21,7 @@ Instalar a OCI CLI. Com o backup fora do caminho de deploy ([T02](./02-remover-b
 ## Checklist
 
 - [x] Inventariado na VM — dois passos manuais escondidos encontrados, ver registro
-- [x] Units reconciliadas pelo pipeline (não pelo cloud-init — decisão no registro), via `scripts/reconcile-systemd.sh`
+- [x] Units reconciliadas pelo pipeline (não pelo cloud-init — decisão no registro), via `scripts/reconcile-systemd.sh` (removido no [T09](./09-revisar-scripts-e-systemd.md) em 2026-08-17, junto com a última unit gerida por ele — ver nota no registro de execução)
 - [x] Swap conferido: `swap_size_gb = 0` para a `A1.Flex` em `infra/terraform/compute/main.tf` é **deliberado** (12GB de RAM, 1.3GB em uso). Não é bug. A `E2.1.Micro` recebe 9GB.
 - [x] `/opt/oikos` e subdiretórios criados pelo cloud-init com dono `deploy`
 - [x] Documentado em `docs/docker-infra.md` §7 (seção nova "Provisionamento Declarativo da VM")
@@ -58,6 +58,8 @@ Unit removida (nao existe mais no repo): oikos-backup.timer
 ```
 
 Estado final na VM: só `oikos-web-restart.timer` habilitado, próxima execução 03:00 UTC. O diretório de staging também passou a ser limpo antes do `scp`.
+
+**Nota (2026-08-17, [T09](./09-revisar-scripts-e-systemd.md))**: `oikos-web-restart.*` foi removido (mitigação de leak sem fix confirmado, decidiu-se monitorar por Grafana em vez de restart cego) e não sobrou nenhuma unit gerida pelo repo — `oikos-backup.*` já tinha saído no T02. Sem unit nenhuma pra reconciliar, `scripts/reconcile-systemd.sh`, `docker/systemd/` e a criação de `/opt/oikos/scripts` no cloud-init foram removidos junto. O mecanismo de reconciliação descrito acima continua válido como referência, caso surja necessidade real de gerir unit systemd de novo.
 
 `oikos-web-restart.service` ganhou os três `--env-file`, acompanhando a fragmentação do [T05](./05-fragmentar-envs.md) — sem isso o restart noturno rodaria sem as variáveis.
 

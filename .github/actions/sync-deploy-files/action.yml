@@ -1,5 +1,5 @@
 name: Sincroniza arquivos de deploy
-description: Sincroniza docker, nginx, observability e scripts para a VM
+description: Sincroniza docker, nginx e observability para a VM
 inputs:
   vm-host:
     description: Host da VM de destino
@@ -17,15 +17,8 @@ runs:
         OBS_PRIVATE_IP: ${{ inputs.obs-private-ip }}
       run: |
         ssh -i ~/.ssh/deploy_key deploy@"$VM_HOST" \
-          'mkdir -p /opt/oikos/docker/certs && touch /opt/oikos/docker/.env.infra /opt/oikos/docker/.env.api /opt/oikos/docker/.env.web && rm -rf /opt/oikos/docker/systemd'
-        scp -i ~/.ssh/deploy_key -r docker nginx observability scripts \
+          'mkdir -p /opt/oikos/docker/certs && touch /opt/oikos/docker/.env.infra /opt/oikos/docker/.env.api /opt/oikos/docker/.env.web'
+        scp -i ~/.ssh/deploy_key -r docker nginx observability \
           deploy@"$VM_HOST":/opt/oikos/
         ssh -i ~/.ssh/deploy_key deploy@"$VM_HOST" \
           "sed -i 's/__OBS_VM_PRIVATE_IP__/$OBS_PRIVATE_IP/' /opt/oikos/nginx/nginx.conf"
-
-    - name: Reconcilia as units systemd
-      shell: bash
-      env:
-        VM_HOST: ${{ inputs.vm-host }}
-      run: |
-        ssh -i ~/.ssh/deploy_key deploy@"$VM_HOST" 'bash -s' < scripts/reconcile-systemd.sh
