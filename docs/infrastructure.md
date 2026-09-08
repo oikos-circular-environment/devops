@@ -165,6 +165,7 @@ Fonte: [GitHub Packages billing](https://docs.github.com/en/billing/concepts/pro
 
 - **DNS proxied (orange-cloud) + Origin CA certificate**: parte do plano Free do Cloudflare, sem custo algum, sem limite relevante pro nosso uso.
 - `grafana.oikos.company` e `minio.oikos.company` ficam só atrás do DNS proxied — sem Cloudflare Access/Zero Trust (avaliado e descartado como overengineering pro MVP, T5). Protegidos pelo login próprio de cada ferramenta (usuário/senha forte).
+- **Cache Rules**: parte do plano Free (10 regras grátis, usamos 1) — cacheia `GET /storage/*` na edge (mídia servida via proxy do MinIO), TTL 30 dias, `override_origin` porque a API não manda `Cache-Control` na origem.
 - **Custo atual: $0/mês.**
 
 ### Decisões de DNS & TLS (módulo `dns`)
