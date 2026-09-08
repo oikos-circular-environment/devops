@@ -104,7 +104,7 @@ services:
       MINIO_ENDPOINT: minio
       APP_PUBLIC_URL: https://api.oikos.company
       WEB_APP_URL: https://oikos.company
-      BETTER_AUTH_TRUSTED_ORIGINS: https://oikos.company,https://www.oikos.company
+      BETTER_AUTH_TRUSTED_ORIGINS: https://oikos.company,https://www.oikos.company,oikos://
       LOG_LEVEL: info
       OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
     deploy:
