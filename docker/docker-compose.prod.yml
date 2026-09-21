@@ -137,7 +137,8 @@ services:
       dockerfile: ../devops/docker/Dockerfile.web.prod
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
-        NEXT_PUBLIC_CLIENT_API_KEY: ${CLIENT_API_KEY}
+      secrets:
+        - gh_token
     environment:
       NODE_ENV: production
       NODE_OPTIONS: "--max-old-space-size=384"
@@ -222,6 +223,10 @@ services:
           memory: 128M
           cpus: "0.25"
     restart: unless-stopped
+
+secrets:
+  gh_token:
+    environment: GH_TOKEN_PERSONAL_TOKEN
 
 volumes:
   postgresql_data:
