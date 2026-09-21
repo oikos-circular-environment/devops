@@ -53,7 +53,7 @@ services:
     restart: unless-stopped
 
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:latest
     env_file:
       - .env.infra
     environment:
@@ -75,7 +75,7 @@ services:
     restart: unless-stopped
 
   createbuckets:
-    image: minio/mc:latest
+    image: quay.io/minio/mc:latest
     depends_on:
       minio:
         condition: service_healthy
