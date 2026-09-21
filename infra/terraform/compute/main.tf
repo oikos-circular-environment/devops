@@ -56,6 +56,10 @@ resource "oci_core_instance" "app" {
       swap_size_gb   = 0
     }))
   }
+
+  lifecycle {
+    ignore_changes = [source_details[0].source_id, metadata]
+  }
 }
 
 resource "oci_core_instance" "observability" {
@@ -82,5 +86,9 @@ resource "oci_core_instance" "observability" {
       ssh_public_key = local.deploy_ssh_public_key
       swap_size_gb   = 9
     }))
+  }
+
+  lifecycle {
+    ignore_changes = [source_details[0].source_id, metadata]
   }
 }
