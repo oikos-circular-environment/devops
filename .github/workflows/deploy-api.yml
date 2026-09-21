@@ -81,7 +81,6 @@ jobs:
       # Renderizado localmente, nao via sed remoto - ver docs/docker-infra.md#2
       - name: Renderiza .env.api a partir dos secrets
         env:
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
           ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
           CLIENT_KEY_MOBILE: ${{ secrets.CLIENT_KEY_MOBILE }}
@@ -95,7 +94,6 @@ jobs:
         run: |
           cat > /tmp/env.api.rendered <<EOF
           API_VERSION=${{ needs.build.outputs.version }}
-          JWT_SECRET=${JWT_SECRET}
           ADMIN_USERNAME=${ADMIN_USERNAME}
           ADMIN_PASSWORD=${ADMIN_PASSWORD}
           QUORUM_JOB_DELAY_MS=86400000
@@ -106,6 +104,7 @@ jobs:
           CLIENT_KEY_WEB=${CLIENT_KEY_WEB}
           CLIENT_KEY_ENFORCE=true
           BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
+          REQUIRE_EMAIL_VERIFICATION=false
           EMAIL_PROVIDER=${EMAIL_PROVIDER}
           RESEND_API_KEY=${RESEND_API_KEY}
           RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL}

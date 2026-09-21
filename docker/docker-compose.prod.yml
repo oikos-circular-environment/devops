@@ -103,6 +103,9 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       MINIO_ENDPOINT: minio
       APP_PUBLIC_URL: https://api.oikos.company
+      WEB_APP_URL: https://oikos.company
+      BETTER_AUTH_TRUSTED_ORIGINS: https://oikos.company,https://www.oikos.company,oikos://
+      CORS_ALLOWED_ORIGINS: https://oikos.company,https://www.oikos.company,https://api.oikos.company,https://grafana.oikos.company
       LOG_LEVEL: info
       OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
     deploy:
