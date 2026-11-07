@@ -4,6 +4,28 @@ Infraestrutura, deploy e observabilidade da plataforma Oikos. Este repositório 
 
 Os diagramas abaixo seguem o modelo C4 e foram gerados no Structurizr a partir de [`docker/structurizr/data/workspace.dsl`](docker/structurizr/data/workspace.dsl). As imagens exportadas ficam em [`docs/diagrams`](docs/diagrams).
 
+## Notas do autor
+
+O repositório está público apenas para fins de compreensão. As decições de infraestrutura e deploy em maior parte foram feitas visando baixo custo ou zero custo, e não necessariamente alta disponibilidade ou escalabilidade. Certamente há soluções e metodos melhores de subir toda a plataforma, mas o objetivo aqui é apenas documentar como o Oikos roda hoje.
+
+Quem estiver interessado em subir e testar o projeto em sua própria infraestrutura, recomendo não usar este repositório.
+
+Mas para quem quiser replicar:
+- Oracle Cloud, o uso dela hoje é gratuito, leia [Recursos Always Free](https://docs.oracle.com/pt-br/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm) para entender os limites do plano Always Free. Para que você ative a conta e utilize os recursos, é necessário um cartão de crédito válido. Porém eles descontam R$ 500,00 de crédito, oque dá um baita susto, mas depois eles devolvem o valor.
+
+- Cloudflare, estou usando todos os serviços gratuitos, incluindo o Turnstile, que é uma alternativa ao reCAPTCHA. E é bem generoso todos os recursos que eles oferecem.
+
+- Terraform Cloud, o uso gratuito para uso pessoal é bem generoso também, vale a pena testar os recursos.
+
+- Observabilidade, Grafana auto hospedada, dentro de uma máquina ARM na Oracle Cloud, com Prometheus, Loki e Tempo. A quantidade de recursos é limitada então cuidado, se você exceder os limites do plano Always Free, a Oracle Cloud irá cobrar o valor excedente, então é bom ficar de olho no uso de CPU, memória e disco. Mas caso você não queira lidar com isso, sugiro usar o Grafana Cloud, que é gratuito para uso pessoal e tem recursos bem generosos. Sentry também é gratuito, tem uma retenção de 14 dias apenas, mas é suficiente para a maioria dos casos.
+
+- MinIO, é um serviço de armazenamento de objetos compatível com S3, que roda dentro da VM de aplicação. Ele é gratuito e open source, mas não é recomendado para produção, pois não tem suporte oficial. Mas para fins de teste e desenvolvimento, ele é uma ótima opção. O AWS S3 seria melhor para produção, valor de custo é baixo.
+
+De resto, a infraestrutura ela pode ser subido em qualquer provedor de nuvem que você desejar, recomendo ver sobre o AWS LightSail, que é bem barato e tem um bom desempenho também. Mas para fins de teste, a Oracle Cloud é uma ótima opção, pois é gratuita e tem recursos bem generosos.
+
+Olhando  hoje eu faria diferente, e subiria a infraestrutura na AWS LightSail e não rodaria dentro de Terraform Cloud e nem Grafana auto hospedada, mas sim no Grafana Cloud, que é gratuito e não tem toda a complexidade de construir e manter a infraestrutura de observabilidade. Mas como eu não sabia antes como funcionava Oracle, Grafana e Terraform, acabei optando para aprender e testar tudo isso.
+
+
 ## Contexto
 
 Quem usa o Oikos.
