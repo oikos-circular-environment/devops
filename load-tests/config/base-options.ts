@@ -17,3 +17,9 @@ export function makeOptions(
 }
 
 export const BASE_URL: string = __ENV.BASE_URL || "http://localhost:3333";
+
+export function testPassword(): string {
+  const value = __ENV.K6_TEST_PASSWORD;
+  if (!value) throw new Error("K6_TEST_PASSWORD não definida: veja load-tests/README.md");
+  return value;
+}

@@ -1,6 +1,6 @@
 import http from "k6/http";
 import { sleep } from "k6";
-import { makeOptions, BASE_URL } from "./config/base-options.ts";
+import { BASE_URL, testPassword, makeOptions } from "./config/base-options.ts";
 import { authHeaders, getToken, registerUser } from "./helpers/auth.ts";
 import { checkOk } from "./helpers/checks.ts";
 import {
@@ -12,7 +12,6 @@ import {
 declare const __VU: number;
 
 const USER_POOL_SIZE = 20;
-const TEST_PASSWORD = "K6Test@123";
 
 export const options = makeOptions(
   [
@@ -35,12 +34,13 @@ export const options = makeOptions(
 export function setup(): { tokens: string[]; categoryIds: string[] } {
   const categoryIds = fetchCategoryIds();
   const runId = `${Date.now()}-${Math.floor(Math.random() * 9999)}`;
+  const password = testPassword();
   const tokens: string[] = [];
 
   for (let i = 0; i < USER_POOL_SIZE; i++) {
     const email = `k6-stress-${runId}-${i}@load.test`;
-    registerUser(BASE_URL, email, TEST_PASSWORD);
-    tokens.push(getToken(BASE_URL, email, TEST_PASSWORD));
+    registerUser(BASE_URL, email, password);
+    tokens.push(getToken(BASE_URL, email, password));
   }
 
   return { tokens, categoryIds };

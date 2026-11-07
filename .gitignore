@@ -39,3 +39,6 @@ graphify-out/
 # local per-machine agent config (embeds absolute paths)
 .claude/settings.json
 .claude/settings.local.json
+
+# Senha dos usuários criados pelos testes k6 (fora do git)
+load-tests/.env.k6.secret
