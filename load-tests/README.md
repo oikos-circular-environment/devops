@@ -7,6 +7,13 @@ Testes de carga usando [k6](https://k6.io/). Todos os scripts fazem push de mét
 - k6 instalado localmente (`k6 version` para verificar)
 - Stack de observabilidade rodando (`devops/observability/`) — para dashboards em tempo real
 - API rodando em `localhost:3333`
+- Arquivo `load-tests/.env.k6.secret`, fora do git, com a senha dos usuários que os testes criam:
+
+```bash
+echo "K6_TEST_PASSWORD=$(openssl rand -base64 24)" > load-tests/.env.k6.secret
+```
+
+Os scripts `load`, `stress`, `soak` e `suite` param com erro se `K6_TEST_PASSWORD` não estiver definida.
 
 ## Scripts disponíveis
 
@@ -86,7 +93,7 @@ ssh -i "$KEY" -o ProxyCommand="ssh -i $KEY -W %h:%p deploy@134.65.229.35" -N -L 
 Com o túnel de pé, num outro terminal:
 
 ```bash
-npx dotenv -e load-tests/.env.k6.prod -- k6 run -o experimental-prometheus-rw --tag testid=<nome> load-tests/load.ts
+npx dotenv -e load-tests/.env.k6.prod -e load-tests/.env.k6.secret -- k6 run -o experimental-prometheus-rw --tag testid=<nome> load-tests/load.ts
 ```
 
 **Atenção**: `load.ts`, `stress.ts`, `soak.ts` e `suite.ts` criam denúncias reais via `POST /v1/complaints`, visíveis no mapa público, usando usuários fake `k6-load-{runId}-{i}@load.test`. Rodar contra produção exige limpar esses registros depois (usuários pelo domínio `@load.test` + denúncias associadas).
