@@ -1,7 +1,7 @@
 import http from "k6/http";
 import { check, sleep } from "k6";
 import type { Options } from "k6/options";
-import { BASE_URL } from "./config/base-options.ts";
+import { BASE_URL, testPassword } from "./config/base-options.ts";
 import { authHeaders, getToken, registerUser } from "./helpers/auth.ts";
 import { checkOk } from "./helpers/checks.ts";
 import {
@@ -14,7 +14,6 @@ declare const __VU: number;
 
 const STRESS_POOL = 20;
 const SOAK_POOL = 10;
-const TEST_PASSWORD = "K6Test@123";
 
 interface SetupData {
   stressTokens: string[];
@@ -112,19 +111,20 @@ export function setup(): SetupData {
     throw new Error("fetchCategoryIds retornou vazio — execute o seed de waste_categories no banco antes de rodar o teste");
   }
   const runId = `${Date.now()}-${Math.floor(Math.random() * 9999)}`;
+  const password = testPassword();
 
   const stressTokens: string[] = [];
   for (let i = 0; i < STRESS_POOL; i++) {
     const email = `k6-suite-stress-${runId}-${i}@load.test`;
-    registerUser(BASE_URL, email, TEST_PASSWORD);
-    stressTokens.push(getToken(BASE_URL, email, TEST_PASSWORD));
+    registerUser(BASE_URL, email, password);
+    stressTokens.push(getToken(BASE_URL, email, password));
   }
 
   const soakTokens: string[] = [];
   for (let i = 0; i < SOAK_POOL; i++) {
     const email = `k6-suite-soak-${runId}-${i}@load.test`;
-    registerUser(BASE_URL, email, TEST_PASSWORD);
-    soakTokens.push(getToken(BASE_URL, email, TEST_PASSWORD));
+    registerUser(BASE_URL, email, password);
+    soakTokens.push(getToken(BASE_URL, email, password));
   }
 
   return { stressTokens, soakTokens, categoryIds };
